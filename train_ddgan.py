@@ -241,6 +241,7 @@ def train(rank, gpu, args):
     if(args.dataset in mdm_datasets):
         data_loader, train_sampler = get_dataset_loader(args.dataset, batch_size,args.num_frames,
                                                                 rank, args.world_size)
+        mdm = True
 
     else:    
         train_sampler = torch.utils.data.distributed.DistributedSampler(dataset,
@@ -255,16 +256,15 @@ def train(rank, gpu, args):
                                                 drop_last = True)
     
     netG = NCSNpp(args).to(device)
-    
 
-    if args.dataset == 'cifar10' or args.dataset == 'stackmnist':    
+    if args.use_small_d:    
         netD = Discriminator_small(nc = 2*args.num_channels, ngf = args.ngf,
                                t_emb_dim = args.t_emb_dim,
-                               act=nn.LeakyReLU(0.2)).to(device)
+                               act=nn.LeakyReLU(0.2), downsample=False if mdm else True).to(device)
     else:
         netD = Discriminator_large(nc = 2*args.num_channels, ngf = args.ngf, 
                                    t_emb_dim = args.t_emb_dim,
-                                   act=nn.LeakyReLU(0.2)).to(device)
+                                   act=nn.LeakyReLU(0.2), downsample=False if mdm else True).to(device)
     
     broadcast_params(netG.parameters())
     broadcast_params(netD.parameters())
@@ -582,6 +582,9 @@ if __name__ == '__main__':
     ###mdm
     parser.add_argument("--num_frames", default=60, type=int,
                        help="Limit for the maximal number of frames. In HumanML3D and KIT this field is ignored.")
+    
+    parser.add_argument('--use_small_d', action='store_true', default=False,
+                        help='use small discriminator')
 
    
     args = parser.parse_args()
