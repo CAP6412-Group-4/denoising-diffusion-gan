@@ -45,3 +45,8 @@ Thumbs.db
 *.wmv
 
 dataset/
+utils/HumanML3D/
+saved_info/
+
+
+cifar-10-python.tar.gz
