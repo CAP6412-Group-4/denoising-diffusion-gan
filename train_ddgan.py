@@ -22,7 +22,7 @@ from torchvision.datasets import CIFAR10
 from datasets_prep.lsun import LSUN
 from datasets_prep.stackmnist_data import StackedMNIST, _data_transforms_stacked_mnist
 from datasets_prep.lmdb_datasets import LMDBDataset
-
+from data_loaders.get_data import get_dataset_loader
 
 from torch.multiprocessing import Process
 import torch.distributed as dist
@@ -237,18 +237,21 @@ def train(rank, gpu, args):
             ])
         dataset = LMDBDataset(root='/datasets/celeba-lmdb/', name='celeba', train=True, transform=train_transform)
       
-    
-    
-    train_sampler = torch.utils.data.distributed.DistributedSampler(dataset,
-                                                                    num_replicas=args.world_size,
-                                                                    rank=rank)
-    data_loader = torch.utils.data.DataLoader(dataset,
-                                               batch_size=batch_size,
-                                               shuffle=False,
-                                               num_workers=4,
-                                               pin_memory=True,
-                                               sampler=train_sampler,
-                                               drop_last = True)
+    mdm_datasets = ['amass', 'uestc', 'humanact12', 'humanml', 'kit']
+    if(args.dataset in mdm_datasets):
+        data_loader = get_dataset_loader(name=args.dataset, batch_size=batch_size, num_frames=args.num_frames)
+
+    else:    
+        train_sampler = torch.utils.data.distributed.DistributedSampler(dataset,
+                                                                        num_replicas=args.world_size,
+                                                                        rank=rank)
+        data_loader = torch.utils.data.DataLoader(dataset,
+                                                batch_size=batch_size,
+                                                shuffle=False,
+                                                num_workers=4,
+                                                pin_memory=True,
+                                                sampler=train_sampler,
+                                                drop_last = True)
     
     netG = NCSNpp(args).to(device)
     
@@ -574,6 +577,10 @@ if __name__ == '__main__':
                         help='rank of process in the node')
     parser.add_argument('--master_address', type=str, default='127.0.0.1',
                         help='address for master')
+    
+    ###mdm
+    parser.add_argument("--num_frames", default=60, type=int,
+                       help="Limit for the maximal number of frames. In HumanML3D and KIT this field is ignored.")
 
    
     args = parser.parse_args()
