@@ -1,6 +1,7 @@
 from torch.utils.data import DataLoader
 from data_loaders.tensors import collate as all_collate
 from data_loaders.tensors import t2m_collate
+import torch
 
 def get_dataset_class(name):
     if name == "amass":
@@ -40,13 +41,17 @@ def get_dataset(name, num_frames, split='train', hml_mode='train'):
     return dataset
 
 
-def get_dataset_loader(name, batch_size, num_frames, split='train', hml_mode='train'):
+def get_dataset_loader(name, batch_size, num_frames, rank, world_size, split='train', hml_mode='train'):
     dataset = get_dataset(name, num_frames, split, hml_mode)
     collate = get_collate_fn(name, hml_mode)
+    train_sampler = torch.utils.data.distributed.DistributedSampler(dataset,
+                                                            num_replicas=world_size,
+                                                            rank=rank)
 
     loader = DataLoader(
-        dataset, batch_size=batch_size, shuffle=True,
-        num_workers=8, drop_last=True, collate_fn=collate
+        dataset, batch_size=batch_size,
+        num_workers=8, drop_last=True, collate_fn=collate,
+        sampler = train_sampler
     )
 
-    return loader
+    return loader,train_sampler

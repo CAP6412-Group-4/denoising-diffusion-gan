@@ -239,7 +239,8 @@ def train(rank, gpu, args):
       
     mdm_datasets = ['amass', 'uestc', 'humanact12', 'humanml', 'kit']
     if(args.dataset in mdm_datasets):
-        data_loader = get_dataset_loader(name=args.dataset, batch_size=batch_size, num_frames=args.num_frames)
+        data_loader, train_sampler = get_dataset_loader(args.dataset, batch_size,args.num_frames,
+                                                                rank, args.world_size)
 
     else:    
         train_sampler = torch.utils.data.distributed.DistributedSampler(dataset,
