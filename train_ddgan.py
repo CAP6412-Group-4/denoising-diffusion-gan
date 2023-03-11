@@ -436,13 +436,13 @@ def train(rank, gpu, args):
             schedulerG.step()
             schedulerD.step()
         
-        if rank == 0:
-            if epoch % 10 == 0:
-                torchvision.utils.save_image(x_pos_sample, os.path.join(exp_path, 'xpos_epoch_{}.png'.format(epoch)), normalize=True)
+        # if rank == 0:
+        #     if epoch % 10 == 0:
+        #         torchvision.utils.save_image(x_pos_sample, os.path.join(exp_path, 'xpos_epoch_{}.png'.format(epoch)), normalize=True)
             
             x_t_1 = torch.randn_like(real_data)
             fake_sample = sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1, T, args)
-            torchvision.utils.save_image(fake_sample, os.path.join(exp_path, 'sample_discrete_epoch_{}.png'.format(epoch)), normalize=True)
+            # torchvision.utils.save_image(fake_sample, os.path.join(exp_path, 'sample_discrete_epoch_{}.png'.format(epoch)), normalize=True)
             
             if args.save_content:
                 if epoch % args.save_content_every == 0:
