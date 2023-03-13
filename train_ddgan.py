@@ -34,7 +34,7 @@ from log import setup_logger
 
 logger = logging.getLogger(__name__)
 
-def copy_source(file, output_dir):
+def copy_source(file: str, output_dir: str):
     shutil.copyfile(file, os.path.join(output_dir, os.path.basename(file)))
             
 def broadcast_params(params):
@@ -284,8 +284,8 @@ def train(rank: int, gpu: int, args: Namespace):
                                    act=nn.LeakyReLU(0.2)).to(device)
     
     # TODO: Look at this function definition
-    broadcast_params(netG.parameters())
-    broadcast_params(netD.parameters())
+    broadcast_params(params=netG.parameters())
+    broadcast_params(params=netD.parameters())
     
     logger.info("Setting optimizerD and optimizerG...")
     optimizerD = optim.Adam(netD.parameters(), lr=args.lr_d, betas = (args.beta1, args.beta2))
@@ -317,7 +317,7 @@ def train(rank: int, gpu: int, args: Namespace):
         if not os.path.exists(exp_path):
             logger.info("Creating exp_path: %s", exp_path)
             os.makedirs(exp_path)
-            copy_source(__file__, exp_path)
+            copy_source(file=__file__, output_dir=exp_path)
             logger.info("Copying Contents...")
             src = 'score_sde/models'
             dst = os.path.join(exp_path, 'score_sde/models')
