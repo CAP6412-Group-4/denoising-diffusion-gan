@@ -4,6 +4,8 @@
 # This work is licensed under the NVIDIA Source Code License
 # for Denoising Diffusion GAN. To view a copy of this license, see the LICENSE file.
 # ---------------------------------------------------------------
+
+import logging
 import argparse
 import torch
 import numpy as np
@@ -13,6 +15,11 @@ import os
 import torchvision
 from score_sde.models.ncsnpp_generator_adagn import NCSNpp
 from pytorch_fid.fid_score import calculate_fid_given_paths
+
+from log import setup_logger
+
+logger = logging.getLogger(__name__)
+
 
 #%% Diffusion coefficients 
 def var_func_vp(t, beta_min, beta_max):
@@ -174,13 +181,13 @@ def sample_and_test(args):
                 for j, x in enumerate(fake_sample):
                     index = i * args.batch_size + j 
                     torchvision.utils.save_image(x, './generated_samples/{}/{}.jpg'.format(args.dataset, index))
-                print('generating batch ', i)
+                logger.info("generating batch: %s", i)
         
         paths = [save_dir, real_img_dir]
     
         kwargs = {'batch_size': 100, 'device': device, 'dims': 2048}
         fid = calculate_fid_given_paths(paths=paths, **kwargs)
-        print('FID = {}'.format(fid))
+        logger.info("FID: %s", fid)
     else:
         x_t_1 = torch.randn(args.batch_size, args.num_channels,args.image_size, args.image_size).to(device)
         fake_sample = sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1,T,  args)
@@ -188,10 +195,8 @@ def sample_and_test(args):
         torchvision.utils.save_image(fake_sample, './samples_{}.jpg'.format(args.dataset))
 
     
-    
-            
-
 if __name__ == '__main__':
+    setup_logger()
     parser = argparse.ArgumentParser('ddgan parameters')
     parser.add_argument('--seed', type=int, default=1024,
                         help='seed used for initialization')
@@ -262,14 +267,16 @@ if __name__ == '__main__':
     parser.add_argument('--z_emb_dim', type=int, default=256)
     parser.add_argument('--t_emb_dim', type=int, default=256)
     parser.add_argument('--batch_size', type=int, default=200, help='sample generating batch size')
+    
+    logger.info(logger.info("<><><><><><><> Start of Testing Denoising Diffusion GAN <><><><><><><>"))
+    
+    try:
+        args = parser.parse_args()
         
-
-
-
-   
-    args = parser.parse_args()
-    
-    sample_and_test(args)
-    
+        sample_and_test(args)
+    except Exception as ex:
+        logger.exception(ex)
+    finally:
+        logger.info("<><><><><><><> End of Testing Denoising Diffusion GAN <><><><><><><>")
    
                 

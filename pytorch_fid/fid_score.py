@@ -44,6 +44,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import logging
 import os
 import pathlib
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
@@ -57,16 +58,22 @@ from PIL import Image
 from scipy import linalg
 from torch.nn.functional import adaptive_avg_pool2d
 
+from log import setup_logger
+
+logger = logging.getLogger(__name__)
+
 try:
     from tqdm import tqdm
-except ImportError:
+except ImportError as ex:
+    logger.warning(ex)
     # If tqdm is not available, provide a mock version of it
     def tqdm(x):
         return x
 
 try:
     from inception import InceptionV3
-except ImportError:
+except ImportError as ex:
+    logger.warning(ex)
     from .inception import InceptionV3
 
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
@@ -126,12 +133,12 @@ def get_activations(files, model, batch_size=50, dims=2048, device='cpu', resize
     model.eval()
 
     if batch_size > len(files):
-        print(('Warning: batch size is bigger than the data size. '
+        logger.warning(('Warning: batch size is bigger than the data size. '
                'Setting batch size to data size'))
         batch_size = len(files)
 
     if resize > 0:
-        print('Resized to ({}, {})'.format(resize, resize))
+        logger.info('Resized to ({}, {})'.format(resize, resize))
         dataset = ImagePathDataset(files, transforms=TF.Compose([TF.Resize(size=(resize, resize)), 
                                                                  TF.ToTensor()]))
     else:
@@ -206,7 +213,7 @@ def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
     if not np.isfinite(covmean).all():
         msg = ('fid calculation produces singular product; '
                'adding %s to diagonal of cov estimates') % eps
-        print(msg)
+        logger.info(msg)
         offset = np.eye(sigma1.shape[0]) * eps
         covmean = linalg.sqrtm((sigma1 + offset).dot(sigma2 + offset))
 
@@ -289,17 +296,25 @@ def calculate_fid_given_paths(paths, batch_size, device, dims, resize=0):
 def main():
     args = parser.parse_args()
 
-    if args.device is None:
-        device = torch.device('cuda' if (torch.cuda.is_available()) else 'cpu')
-    else:
-        device = torch.device(args.device)
+    logger.info("<><><><><> Start of FID Score Main Script <><><><><>")
 
-    fid_value = calculate_fid_given_paths(args.path,
-                                          args.batch_size,
-                                          device,
-                                          args.dims)
-    print('FID: ', fid_value)
+    try:
+        if args.device is None:
+            device = torch.device('cuda' if (torch.cuda.is_available()) else 'cpu')
+        else:
+            device = torch.device(args.device)
+
+        fid_value = calculate_fid_given_paths(args.path,
+                                            args.batch_size,
+                                            device,
+                                            args.dims)
+        logger.info('FID: %s', fid_value)
+    except Exception as ex:
+        logger.exception(ex)
+    finally:
+        logger.info("<><><><><> End of FID Score Main Script <><><><><>")
 
 
 if __name__ == '__main__':
+    setup_logger()
     main()

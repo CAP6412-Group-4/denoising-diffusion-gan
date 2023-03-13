@@ -21,6 +21,8 @@ Args:
 Returns:
     Mean and standard deviation of the Inception Score across the splits.
 '''
+
+import logging
 import argparse
 
 import tensorflow.compat.v1 as tf
@@ -33,7 +35,13 @@ import time
 from tensorflow.python.ops import array_ops
 # pip install tensorflow-gan
 import tensorflow_gan as tfgan
+
+from log import setup_logger
+
 session=tf.compat.v1.InteractiveSession()
+
+logger = logging.getLogger(__name__)
+
 # A smaller BATCH_SIZE reduces GPU memory usage, but at the cost of a slight slowdown
 BATCH_SIZE = 64
 INCEPTION_TFHUB = 'https://tfhub.dev/tensorflow/tfgan/eval/inception/1'
@@ -82,22 +90,30 @@ def get_inception_score(images, splits=10):
     assert(len(images.shape) == 4)
     assert(images.shape[1] == 3)
     assert(np.min(images[0]) >= 0 and np.max(images[0]) > 10), 'Image values should be in the range [0, 255]'
-    print('Calculating Inception Score with %i images in %i splits' % (images.shape[0], splits))
+    logger.info('Calculating Inception Score with %i images in %i splits' % (images.shape[0], splits))
     start_time=time.time()
     preds = get_inception_probs(images)
     mean, std = preds2score(preds, splits)
-    print('Inception Score calculation time: %f s' % (time.time() - start_time))
+    logger.info('Inception Score calculation time: %f s' % (time.time() - start_time))
     return mean, std  # Reference values: 11.38 for 50000 CIFAR-10 training set images, or mean=11.31, std=0.10 if in 10 splits.
 
 
 if __name__ == '__main__':
+    setup_logger()
     parser = argparse.ArgumentParser()
     parser.add_argument('--sample_dir', default='./saved_samples/', help='path to saved images')
-    opt = parser.parse_args()
-
-    data = np.load(opt.sample_dir)
-    data = np.clip(data, 0, 255)
-    m, s = get_inception_score(data, splits=1)
     
-    print('mean: ', m)
-    print('std: ', s)
+    logger.info("<><><><><> Start of Inception Score Main Script <><><><><>")
+    
+    try:
+        opt = parser.parse_args()
+        data = np.load(opt.sample_dir)
+        data = np.clip(data, 0, 255)
+        m, s = get_inception_score(data, splits=1)
+        
+        logger.info('mean: %s', m)
+        logger.info('std: %s', s)
+    except Exception as ex:
+        logger.exception(ex)
+    finally:
+        logger.info("<><><><><> End of Inception Score Main Script <><><><><>")

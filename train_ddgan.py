@@ -318,8 +318,7 @@ def train(rank, gpu, args):
         optimizerD.load_state_dict(checkpoint['optimizerD'])
         schedulerD.load_state_dict(checkpoint['schedulerD'])
         global_step = checkpoint['global_step']
-        print("=> loaded checkpoint (epoch {})"
-                  .format(checkpoint['epoch']))
+        logger.info("=> loaded checkpoint (epoch {})".format(checkpoint['epoch']))
     else:
         global_step, epoch, init_epoch = 0, 0, 0
     
@@ -431,7 +430,7 @@ def train(rank, gpu, args):
             global_step += 1
             if iteration % 100 == 0:
                 if rank == 0:
-                    print('epoch {} iteration{}, G Loss: {}, D Loss: {}'.format(epoch,iteration, errG.item(), errD.item()))
+                    logger.info('epoch {} iteration{}, G Loss: {}, D Loss: {}'.format(epoch,iteration, errG.item(), errD.item()))
         
         if not args.no_lr_decay:
             
@@ -448,7 +447,7 @@ def train(rank, gpu, args):
             
             if args.save_content:
                 if epoch % args.save_content_every == 0:
-                    print('Saving content.')
+                    logger.info('Saving content.')
                     content = {'epoch': epoch + 1, 'global_step': global_step, 'args': args,
                                'netG_dict': netG.state_dict(), 'optimizerG': optimizerG.state_dict(),
                                'schedulerG': schedulerG.state_dict(), 'netD_dict': netD.state_dict(),
