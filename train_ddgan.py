@@ -190,6 +190,7 @@ def sample_from_model(coefficients, generator, n_time, x_init, T, opt):
 def train(rank, gpu, args):
     from score_sde.models.discriminator import Discriminator_small, Discriminator_large
     from score_sde.models.ncsnpp_generator_adagn import NCSNpp
+    from score_sde.models.mdm import MDM
     from EMA import EMA
     
     torch.manual_seed(args.seed + rank)
@@ -255,7 +256,25 @@ def train(rank, gpu, args):
                                                 sampler=train_sampler,
                                                 drop_last = True)
     
-    netG = NCSNpp(args).to(device)
+    netG = MDM(
+        modeltype='',
+        njoints=263,
+        nfeats=1,
+        num_actions=1,
+        translation=True,
+        pose_rep='rot6d',
+        glob=True,
+        glob_rot=True,
+        latent_dim=512,
+        ff_size=1024,
+        num_layers=8,
+        num_heads=4,
+        dropout=0.1,
+        activation="gelu",
+        data_rep="hml_vec",
+        dataset="humanml",
+    )
+    # netG = NCSNpp(args).to(device)
 
     if args.use_small_d:    
         netD = Discriminator_small(nc = 2*args.num_channels, ngf = args.ngf,
