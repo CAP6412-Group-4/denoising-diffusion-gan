@@ -193,19 +193,32 @@ def sample_from_model(coefficients, generator, n_time, x_init, T, opt):
     return x
 
 #%%
-def train(rank, gpu, args):
+def train(rank: int, gpu: int, args: Namespace):
+    logger.info("train(): (rank=%s, gpu=%s)", rank, gpu)
+    
+    logger.info("Importing more libraries...")
     from score_sde.models.discriminator import Discriminator_small, Discriminator_large
     from score_sde.models.ncsnpp_generator_adagn import NCSNpp
     from EMA import EMA
     
-    torch.manual_seed(args.seed + rank)
-    torch.cuda.manual_seed(args.seed + rank)
-    torch.cuda.manual_seed_all(args.seed + rank)
-    device = torch.device('cuda:{}'.format(gpu))
+    logger.info("Seed: %s", args.seed)
+    
+    manual_seed_val = args.seed + rank
+    logger.info("args.seed + rank = %s", manual_seed_val)
+    torch.manual_seed(manual_seed_val)
+    torch.cuda.manual_seed(manual_seed_val)
+    torch.cuda.manual_seed_all(manual_seed_val)
+    
+    torch_device = 'cuda:{}'.format(gpu)
+    logger.info("Torch Device: %s", torch_device)
+    device = torch.device(torch_device)
     
     batch_size = args.batch_size
-    
     nz = args.nz #latent dimension
+    
+    logger.info("Batch Size: %s", batch_size)
+    logger.info("NZ: %s", nz)
+    logger.info("Dataset: %s", args.dataset)
     
     if args.dataset == 'cifar10':
         dataset = CIFAR10('./data', train=True, transform=transforms.Compose([
@@ -244,7 +257,7 @@ def train(rank, gpu, args):
         dataset = LMDBDataset(root='/datasets/celeba-lmdb/', name='celeba', train=True, transform=train_transform)
       
     
-    
+    logger.info("Creating train_sampler and data_loader")
     train_sampler = torch.utils.data.distributed.DistributedSampler(dataset,
                                                                     num_replicas=args.world_size,
                                                                     rank=rank)
@@ -256,55 +269,74 @@ def train(rank, gpu, args):
                                                sampler=train_sampler,
                                                drop_last = True)
     
+    logger.info("Creating netG...")
     netG = NCSNpp(args).to(device)
     
-
-    if args.dataset == 'cifar10' or args.dataset == 'stackmnist':    
+    if args.dataset == 'cifar10' or args.dataset == 'stackmnist':
+        logger.info("Small Discriminator Created")    
         netD = Discriminator_small(nc = 2*args.num_channels, ngf = args.ngf,
                                t_emb_dim = args.t_emb_dim,
                                act=nn.LeakyReLU(0.2)).to(device)
     else:
+        logger.info("Large Discriminator Created")
         netD = Discriminator_large(nc = 2*args.num_channels, ngf = args.ngf, 
                                    t_emb_dim = args.t_emb_dim,
                                    act=nn.LeakyReLU(0.2)).to(device)
     
+    # TODO: Look at this function definition
     broadcast_params(netG.parameters())
     broadcast_params(netD.parameters())
     
+    logger.info("Setting optimizerD and optimizerG...")
     optimizerD = optim.Adam(netD.parameters(), lr=args.lr_d, betas = (args.beta1, args.beta2))
-    
     optimizerG = optim.Adam(netG.parameters(), lr=args.lr_g, betas = (args.beta1, args.beta2))
     
+    logger.info("use_ema: %s", args.use_ema)
     if args.use_ema:
         optimizerG = EMA(optimizerG, ema_decay=args.ema_decay)
     
+    logger.info("Setting schedulerG and schedulerD...")
     schedulerG = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerG, args.num_epoch, eta_min=1e-5)
     schedulerD = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerD, args.num_epoch, eta_min=1e-5)
     
     
-    
+    logger.info("Setting netG and netD")
     #ddp
     netG = nn.parallel.DistributedDataParallel(netG, device_ids=[gpu])
     netD = nn.parallel.DistributedDataParallel(netD, device_ids=[gpu])
 
-    
     exp = args.exp
     parent_dir = "./saved_info/dd_gan/{}".format(args.dataset)
-
-    exp_path = os.path.join(parent_dir,exp)
+    exp_path = os.path.join(parent_dir, exp)
+    
+    logger.info("exp: %s", exp)
+    logger.info("parent_dir: %s", parent_dir)
+    logger.info("exp_path: %s", exp_path)
+    
     if rank == 0:
         if not os.path.exists(exp_path):
+            logger.info("Creating exp_path: %s", exp_path)
             os.makedirs(exp_path)
             copy_source(__file__, exp_path)
-            shutil.copytree('score_sde/models', os.path.join(exp_path, 'score_sde/models'))
+            logger.info("Copying Contents...")
+            src = 'score_sde/models'
+            dst = os.path.join(exp_path, 'score_sde/models')
+            logger.info("Source: %s", src)
+            logger.info("Destination: %s", dst)
+            shutil.copytree(src=src, dst=dst)
     
-    
+    # TODO: Look at these two classes and function
     coeff = Diffusion_Coefficients(args, device)
     pos_coeff = Posterior_Coefficients(args, device)
     T = get_time_schedule(args, device)
     
+    logger.info("resume: %s", args.resume)
+    
     if args.resume:
         checkpoint_file = os.path.join(exp_path, 'content.pth')
+        
+        logger.info("checkpoint_file: %s", checkpoint_file)
+        
         checkpoint = torch.load(checkpoint_file, map_location=device)
         init_epoch = checkpoint['epoch']
         epoch = init_epoch
@@ -323,6 +355,9 @@ def train(rank, gpu, args):
         global_step, epoch, init_epoch = 0, 0, 0
     
     
+    logger.info("Starting training loop...")
+    logger.info("init_epoch: %s", init_epoch)
+    logger.info("num_epoch: %s", args.num_epoch + 1)
     for epoch in range(init_epoch, args.num_epoch+1):
         train_sampler.set_epoch(epoch)
        
