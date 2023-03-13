@@ -6,10 +6,12 @@
 # ---------------------------------------------------------------
 
 
+import logging
 import argparse
 import torch
 import numpy as np
-
+from argparse import Namespace
+from typing import Callable
 import os
 
 import torch.nn as nn
@@ -27,6 +29,10 @@ from datasets_prep.lmdb_datasets import LMDBDataset
 from torch.multiprocessing import Process
 import torch.distributed as dist
 import shutil
+
+from log import setup_logger
+
+logger = logging.getLogger(__name__)
 
 def copy_source(file, output_dir):
     shutil.copyfile(file, os.path.join(output_dir, os.path.basename(file)))
@@ -460,10 +466,15 @@ def train(rank, gpu, args):
             
 
 
-def init_processes(rank, size, fn, args):
+def init_processes(rank: int, size: int, fn: Callable, args: Namespace):
     """ Initialize the distributed environment. """
+    logger.info("init_processes(): (rank=%s, size=%s, fn=%s, master_address='%s', port=%d, local_rank=%d)", 
+                rank, size, fn, args.master_address, 6020, args.local_rank)
+
     os.environ['MASTER_ADDR'] = args.master_address
     os.environ['MASTER_PORT'] = '6020'
+    
+    logger.info("Setting CUDA Device...")
     torch.cuda.set_device(args.local_rank)
     gpu = args.local_rank
     dist.init_process_group(backend='nccl', init_method='env://', rank=rank, world_size=size)
@@ -475,6 +486,8 @@ def cleanup():
     dist.destroy_process_group()    
 #%%
 if __name__ == '__main__':
+    setup_logger()
+
     parser = argparse.ArgumentParser('ddgan parameters')
     parser.add_argument('--seed', type=int, default=1024,
                         help='seed used for initialization')
@@ -575,28 +588,31 @@ if __name__ == '__main__':
     parser.add_argument('--master_address', type=str, default='127.0.0.1',
                         help='address for master')
 
-   
-    args = parser.parse_args()
-    args.world_size = args.num_proc_node * args.num_process_per_node
-    size = args.num_process_per_node
+    try:
+        args = parser.parse_args()
+        args.world_size = args.num_proc_node * args.num_process_per_node
+        size = args.num_process_per_node
 
-    if size > 1:
-        processes = []
-        for rank in range(size):
-            args.local_rank = rank
-            global_rank = rank + args.node_rank * args.num_process_per_node
-            global_size = args.num_proc_node * args.num_process_per_node
-            args.global_rank = global_rank
-            print('Node rank %d, local proc %d, global proc %d' % (args.node_rank, rank, global_rank))
-            p = Process(target=init_processes, args=(global_rank, global_size, train, args))
-            p.start()
-            processes.append(p)
+        logger.info("Size: %s", size)
+
+        if size > 1:
+            processes = []
+            for rank in range(size):
+                args.local_rank = rank
+                global_rank = rank + args.node_rank * args.num_process_per_node
+                global_size = args.num_proc_node * args.num_process_per_node
+                args.global_rank = global_rank
+                logger.info("Node rank %d, local proc %d, global proc %d", args.node_rank, rank, global_rank)
+                p = Process(target=init_processes, args=(global_rank, global_size, train, args))
+                p.start()
+                processes.append(p)
             
-        for p in processes:
-            p.join()
-    else:
-        print('starting in debug mode')
+            for p in processes:
+                p.join()
+        else:
+            logger.info("Starting in debug mode")
         
-        init_processes(0, size, train, args)
-   
+            init_processes(rank=0, size=size, fn=train, args=args)
+    except Exception as ex:
+        logger.exception(ex)
                 
