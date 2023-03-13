@@ -63,32 +63,56 @@ class NCSNpp(nn.Module):
   def __init__(self, config):
     super().__init__()
     self.config = config
-    self.not_use_tanh = config.not_use_tanh
+    # self.not_use_tanh = config.not_use_tanh
+    self.not_use_tanh = False
     self.act = act = nn.SiLU()
-    self.z_emb_dim = z_emb_dim = config.z_emb_dim
-    
-    self.nf = nf = config.num_channels_dae
-    ch_mult = config.ch_mult
-    self.num_res_blocks = num_res_blocks = config.num_res_blocks
-    self.attn_resolutions = attn_resolutions = config.attn_resolutions
-    dropout = config.dropout
-    resamp_with_conv = config.resamp_with_conv
-    self.num_resolutions = num_resolutions = len(ch_mult)
-    self.all_resolutions = all_resolutions = [config.image_size // (2 ** i) for i in range(num_resolutions)]
+    # self.z_emb_dim = z_emb_dim = config.z_emb_dim
+    self.z_emb_dim = z_emb_dim = 256
 
-    self.conditional = conditional = config.conditional  # noise-conditional
-    fir = config.fir
-    fir_kernel = config.fir_kernel
-    self.skip_rescale = skip_rescale = config.skip_rescale
-    self.resblock_type = resblock_type = config.resblock_type.lower()
-    self.progressive = progressive = config.progressive.lower()
-    self.progressive_input = progressive_input = config.progressive_input.lower()
-    self.embedding_type = embedding_type = config.embedding_type.lower()
+    
+    # self.nf = nf = config.num_channels_dae
+    self.nf = nf = 128
+
+    # ch_mult = config.ch_mult
+    ch_mult = [1]
+
+
+    # self.num_res_blocks = num_res_blocks = config.num_res_blocks
+    # self.attn_resolutions = attn_resolutions = config.attn_resolutions
+    # dropout = config.dropout
+    # resamp_with_conv = config.resamp_with_conv
+    # self.num_resolutions = num_resolutions = len(ch_mult)
+    # self.all_resolutions = all_resolutions = [config.image_size // (2 ** i) for i in range(num_resolutions)]
+
+    self.num_res_blocks = num_res_blocks = 2
+    self.attn_resolutions = attn_resolutions = (16,)
+    dropout = 0.
+    resamp_with_conv = True
+    self.num_resolutions = num_resolutions = len(ch_mult)
+    self.all_resolutions = all_resolutions = [32 // (2 ** i) for i in range(num_resolutions)]
+
+    # self.conditional = conditional = config.conditional  # noise-conditional
+    # fir = config.fir
+    # fir_kernel = config.fir_kernel
+    # self.skip_rescale = skip_rescale = config.skip_rescale
+    # self.resblock_type = resblock_type = config.resblock_type.lower()
+    # self.progressive = progressive = config.progressive.lower()
+    # self.progressive_input = progressive_input = config.progressive_input.lower()
+    # self.embedding_type = embedding_type = config.embedding_type.lower()
+
+    self.conditional = conditional = True # noise-conditional
+    fir = True
+    fir_kernel = [1, 3, 3, 1]
+    self.skip_rescale = skip_rescale = True
+    self.resblock_type = resblock_type = 'biggan'.lower()
+    self.progressive = progressive = 'none'
+    self.progressive_input = progressive_input = 'residual'
+    self.embedding_type = embedding_type = 'positional'
     init_scale = 0.
     assert progressive in ['none', 'output_skip', 'residual']
     assert progressive_input in ['none', 'input_skip', 'residual']
     assert embedding_type in ['fourier', 'positional']
-    combine_method = config.progressive_combine.lower()
+    combine_method = 'sum'
     combiner = functools.partial(Combine, method=combine_method)
 
     modules = []
@@ -97,8 +121,12 @@ class NCSNpp(nn.Module):
       # Gaussian Fourier features embeddings.
       #assert config.training.continuous, "Fourier features are only used for continuous training."
 
+      # modules.append(layerspp.GaussianFourierProjection(
+      #   embedding_size=nf, scale=config.fourier_scale
+      # ))
+
       modules.append(layerspp.GaussianFourierProjection(
-        embedding_size=nf, scale=config.fourier_scale
+      embedding_size=nf, scale=16
       ))
       embed_dim = 2 * nf
 
@@ -173,7 +201,9 @@ class NCSNpp(nn.Module):
 
     # Downsampling block
 
-    channels = config.num_channels
+    # channels = config.num_channels
+    channels = 263
+
     if progressive_input != 'none':
       input_pyramid_ch = channels
 
@@ -268,10 +298,16 @@ class NCSNpp(nn.Module):
     self.all_modules = nn.ModuleList(modules)
     
     
+    # mapping_layers = [PixelNorm(),
+    #                   dense(config.nz, z_emb_dim),
+    #                   self.act,]
+
     mapping_layers = [PixelNorm(),
-                      dense(config.nz, z_emb_dim),
-                      self.act,]
-    for _ in range(config.n_mlp):
+                  dense(100, z_emb_dim),
+                  self.act,]
+    
+    # for _ in range(config.n_mlp):
+    for _ in range(3):
         mapping_layers.append(dense(z_emb_dim, z_emb_dim))
         mapping_layers.append(self.act)
     self.z_transform = nn.Sequential(*mapping_layers)

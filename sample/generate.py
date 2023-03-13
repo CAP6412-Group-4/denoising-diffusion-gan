@@ -3,6 +3,10 @@
 Generate a large batch of image samples from a model and save them as a large
 numpy array. This can be used to produce samples for FID evaluation.
 """
+import sys
+from pathlib import Path
+sys.path.append(str(Path().parent))
+
 from utils.fixseed import fixseed
 import os
 import numpy as np
@@ -41,7 +45,7 @@ def main():
     njoints = 263
     nfeats = 1
 
-    data = load_dataset(args, max_frames, n_frames)
+    data, dataset = load_dataset(args, max_frames, n_frames)
 
     netG = NCSNpp(args).to(device)
     ckpt = torch.load('./saved_info/dd_gan/{}/{}/netG_{}.pth'.format(args.dataset, args.exp, args.epoch_id), map_location=device)
@@ -69,7 +73,7 @@ def main():
     # Recover XYZ *positions* from HumanML3D vector representation
     if data_rep == 'hml_vec':
         n_joints = 22 if sample.shape[1] == 263 else 21
-        sample = data.dataset.t2m_dataset.inv_transform(sample.cpu().permute(0, 2, 3, 1)).float()
+        sample = dataset.t2m_dataset.inv_transform(sample.cpu().permute(0, 2, 3, 1)).float()
         sample = recover_from_ric(sample, n_joints)
         sample = sample.view(-1, *sample.shape[2:]).permute(0, 2, 3, 1)
 
@@ -120,19 +124,19 @@ def main():
     for sample_i in range(args.num_samples):
         rep_files = []
         for rep_i in range(args.num_repetitions):
-            caption = all_text[rep_i*args.batch_size + sample_i]
+            # caption = all_text[rep_i*args.batch_size + sample_i]
             length = all_lengths[rep_i*args.batch_size + sample_i]
             motion = all_motions[rep_i*args.batch_size + sample_i].transpose(2, 0, 1)[:length]
             save_file = sample_file_template.format(sample_i, rep_i)
-            print(sample_print_template.format(caption, sample_i, rep_i, save_file))
+            # print(sample_print_template.format(caption, sample_i, rep_i, save_file))
             animation_save_path = os.path.join(out_path, save_file)
-            plot_3d_motion(animation_save_path, skeleton, motion, dataset=args.dataset, title=caption, fps=fps)
+            plot_3d_motion(animation_save_path, skeleton, motion, dataset=args.dataset, title='caption', fps=fps)
             # Credit for visualization: https://github.com/EricGuo5513/text-to-motion
             rep_files.append(animation_save_path)
 
         sample_files = save_multiple_samples(args, out_path,
                                                row_print_template, all_print_template, row_file_template, all_file_template,
-                                               caption, num_samples_in_out_file, rep_files, sample_files, sample_i)
+                                               'caption', num_samples_in_out_file, rep_files, sample_files, sample_i)
 
     abs_path = os.path.abspath(out_path)
     print(f'[Done] Results are at [{abs_path}]')
@@ -183,13 +187,15 @@ def construct_template_variables(unconstrained):
 
 
 def load_dataset(args, max_frames, n_frames):
-    data = get_dataset_loader(name=args.dataset,
+    data, _ , dataset = get_dataset_loader(name=args.dataset,
                               batch_size=args.batch_size,
                               num_frames=max_frames,
+                              rank = args.node_rank,
+                              world_size = args.num_process_per_node,
                               split='test',
                               hml_mode='text_only')
-    data.fixed_length = n_frames
-    return data
+    # data.fixed_length = n_frames
+    return data, dataset
 
 
 if __name__ == "__main__":

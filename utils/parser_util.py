@@ -16,22 +16,22 @@ def parse_and_load_from_model(parser):
         args_to_overwrite += get_args_per_group_name(parser, args, group_name)
 
     # load args from model
-    model_path = get_model_path_from_args()
-    args_path = os.path.join(os.path.dirname(model_path), 'args.json')
-    assert os.path.exists(args_path), 'Arguments json file was not found!'
-    with open(args_path, 'r') as fr:
-        model_args = json.load(fr)
+    # model_path = get_model_path_from_args()
+    # args_path = os.path.join(os.path.dirname(model_path), 'args.json')
+    # assert os.path.exists(args_path), 'Arguments json file was not found!'
+    # with open(args_path, 'r') as fr:
+    #     model_args = json.load(fr)
 
-    for a in args_to_overwrite:
-        if a in model_args.keys():
-            setattr(args, a, model_args[a])
+    # for a in args_to_overwrite:
+    #     if a in model_args.keys():
+    #         setattr(args, a, model_args[a])
 
-        elif 'cond_mode' in model_args: # backward compitability
-            unconstrained = (model_args['cond_mode'] == 'no_cond')
-            setattr(args, 'unconstrained', unconstrained)
+    #     elif 'cond_mode' in model_args: # backward compitability
+    #         unconstrained = (model_args['cond_mode'] == 'no_cond')
+    #         setattr(args, 'unconstrained', unconstrained)
 
-        else:
-            print('Warning: was not able to load [{}], using default value [{}] instead.'.format(a, args.__dict__[a]))
+    #     else:
+    #         print('Warning: was not able to load [{}], using default value [{}] instead.'.format(a, args.__dict__[a]))
 
     if args.cond_mask_prob == 0:
         args.guidance_param = 1
@@ -140,11 +140,13 @@ def add_training_options(parser):
 
 def add_sampling_options(parser):
     group = parser.add_argument_group('sampling')
-    group.add_argument("--model_path", required=True, type=str,
+    group.add_argument("--model_path", required=False, type=str,
                        help="Path to model####.pt file to be sampled.")
     group.add_argument("--output_dir", default='', type=str,
                        help="Path to results dir (auto created by the script). "
                             "If empty, will create dir in parallel to checkpoint.")
+    group.add_argument("--exp", default='text',type=str, help = "experiment name")
+    group.add_argument("--epoch_id", default=100, type=int, help = "epoch id")
     group.add_argument("--num_samples", default=10, type=int,
                        help="Maximal number of prompts to sample, "
                             "if loading dataset from file, this field will be ignored.")
@@ -152,6 +154,76 @@ def add_sampling_options(parser):
                        help="Number of repetitions, per sample (text prompt/action)")
     group.add_argument("--guidance_param", default=2.5, type=float,
                        help="For classifier-free sampling - specifies the s parameter, as defined in the paper.")
+    ########################################
+    #added these
+
+    parser.add_argument('--compute_fid', action='store_true', default=False,
+                            help='whether or not compute FID')
+    parser.add_argument('--num_channels', type=int, default=263,
+                            help='channel of image')
+    parser.add_argument('--centered', action='store_false', default=True,
+                            help='-1,1 scale')
+    parser.add_argument('--use_geometric', action='store_true',default=False)
+    parser.add_argument('--beta_min', type=float, default= 0.1,
+                            help='beta_min for diffusion')
+    parser.add_argument('--beta_max', type=float, default=20.,
+                            help='beta_max for diffusion')
+    
+    
+    parser.add_argument('--num_channels_dae', type=int, default=128,
+                            help='number of initial channels in denosing model')
+    parser.add_argument('--n_mlp', type=int, default=3,
+                            help='number of mlp layers for z')
+    parser.add_argument('--ch_mult', nargs='+', type=int,
+                            help='channel multiplier')
+
+    parser.add_argument('--num_res_blocks', type=int, default=2,
+                            help='number of resnet blocks per scale')
+    parser.add_argument('--attn_resolutions', default=(16,),
+                            help='resolution of applying attention')
+    parser.add_argument('--dropout', type=float, default=0.,
+                            help='drop-out rate')
+    parser.add_argument('--resamp_with_conv', action='store_false', default=True,
+                            help='always up/down sampling with conv')
+    parser.add_argument('--conditional', action='store_false', default=True,
+                            help='noise conditional')
+    parser.add_argument('--fir', action='store_false', default=True,
+                            help='FIR')
+    parser.add_argument('--fir_kernel', default=[1, 3, 3, 1],
+                            help='FIR kernel')
+    parser.add_argument('--skip_rescale', action='store_false', default=True,
+                            help='skip rescale')
+    parser.add_argument('--resblock_type', default='biggan',
+                            help='tyle of resnet block, choice in biggan and ddpm')
+    parser.add_argument('--progressive', type=str, default='none', choices=['none', 'output_skip', 'residual'],
+                            help='progressive type for output')
+    parser.add_argument('--progressive_input', type=str, default='residual', choices=['none', 'input_skip', 'residual'],
+                        help='progressive type for input')
+    parser.add_argument('--progressive_combine', type=str, default='sum', choices=['sum', 'cat'],
+                        help='progressive combine method.')
+
+    parser.add_argument('--embedding_type', type=str, default='positional', choices=['positional', 'fourier'],
+                        help='type of time embedding')
+    parser.add_argument('--fourier_scale', type=float, default=16.,
+                            help='scale of fourier transform')
+    parser.add_argument('--not_use_tanh', action='store_true',default=False)
+    
+    #geenrator and training
+    parser.add_argument('--real_img_dir', default='./pytorch_fid/cifar10_train_stat.npy', help='directory to real images for FID computation')
+
+    parser.add_argument('--image_size', type=int, default=32,
+                            help='size of image')
+
+    parser.add_argument('--nz', type=int, default=100)
+    parser.add_argument('--num_timesteps', type=int, default=4)
+    
+    
+    parser.add_argument('--z_emb_dim', type=int, default=256)
+    parser.add_argument('--t_emb_dim', type=int, default=256)
+    parser.add_argument('--node_rank', type=int, default=1)
+    parser.add_argument('--num_process_per_node', type=int, default=1)
+
+
 
 
 def add_generate_options(parser):

@@ -239,7 +239,7 @@ def train(rank, gpu, args):
       
     mdm_datasets = ['amass', 'uestc', 'humanact12', 'humanml', 'kit']
     if(args.dataset in mdm_datasets):
-        data_loader, train_sampler = get_dataset_loader(args.dataset, batch_size,args.num_frames,
+        data_loader, train_sampler, _ = get_dataset_loader(args.dataset, batch_size,args.num_frames,
                                                                 rank, args.world_size)
         mdm = True
 
