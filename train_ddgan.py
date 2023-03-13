@@ -274,6 +274,9 @@ def train(rank, gpu, args):
         data_rep="hml_vec",
         dataset="humanml",
     )
+
+    netG.to(torch.device(f"cuda:0"))
+
     # netG = NCSNpp(args).to(device)
 
     if args.use_small_d:    
@@ -398,7 +401,7 @@ def train(rank, gpu, args):
             latent_z = torch.randn(batch_size, nz, device=device)
             
          
-            x_0_predict = netG(x_tp1.detach(), t)
+            x_0_predict = netG(x_tp1.detach(), t,y = {})
             x_pos_sample = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
@@ -431,7 +434,7 @@ def train(rank, gpu, args):
             
                 
            
-            x_0_predict = netG(x_tp1.detach(), t)
+            x_0_predict = netG(x_tp1.detach(), t, y = {})
             x_pos_sample = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
