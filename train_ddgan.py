@@ -592,7 +592,8 @@ if __name__ == '__main__':
         args = parser.parse_args()
         args.world_size = args.num_proc_node * args.num_process_per_node
         size = args.num_process_per_node
-
+        
+        logger.info("<><><><><><><> Start of Training Denoising Diffusion GAN <><><><><><><>")
         logger.info("Size: %s", size)
 
         if size > 1:
@@ -615,4 +616,6 @@ if __name__ == '__main__':
             init_processes(rank=0, size=size, fn=train, args=args)
     except Exception as ex:
         logger.exception(ex)
-                
+    finally:
+        logger.info("<><><><><><><> End of Training Denoising Diffusion GAN <><><><><><><>")
+       

@@ -44,3 +44,9 @@ Thumbs.db
 *.mov
 *.wmv
 
+# Virtual environment
+venv/*
+
+# Data
+data/*
+
