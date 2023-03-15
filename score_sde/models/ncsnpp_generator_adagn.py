@@ -36,7 +36,8 @@ import torch.nn as nn
 import functools
 import torch
 import numpy as np
-
+from .mdm import PositionalEncoding, TimestepEmbedder, EmbedAction
+import clip
 
 ResnetBlockDDPM = layerspp.ResnetBlockDDPMpp_Adagn
 ResnetBlockBigGAN = layerspp.ResnetBlockBigGANpp_Adagn
@@ -90,8 +91,11 @@ class NCSNpp(nn.Module):
     assert embedding_type in ['fourier', 'positional']
     combine_method = config.progressive_combine.lower()
     combiner = functools.partial(Combine, method=combine_method)
+    self.position_encoder = PositionalEncoding(self.z_emb_dim)
+    self.timestep_embedder = TimestepEmbedder(self.z_emb_dim, self.position_encoder)
+    self.cond_mask_prob = 0.1
 
-    modules = []
+    modules: list[nn.Module] = []
     # timestep/noise_level embedding; only for continuous training
     if embedding_type == 'fourier':
       # Gaussian Fourier features embeddings.
@@ -109,12 +113,33 @@ class NCSNpp(nn.Module):
       raise ValueError(f'embedding type {embedding_type} unknown.')
 
     if conditional:
+      # conditional timestep embeddings
       modules.append(nn.Linear(embed_dim, nf * 4))
       modules[-1].weight.data = default_initializer()(modules[-1].weight.shape)
       nn.init.zeros_(modules[-1].bias)
       modules.append(nn.Linear(nf * 4, nf * 4))
       modules[-1].weight.data = default_initializer()(modules[-1].weight.shape)
       nn.init.zeros_(modules[-1].bias)
+
+      # Conditional Text Embeddings
+      modules.append(nn.Linear(512, self.z_emb_dim))
+      print('EMBED TEXT')
+      print('Loading CLIP...')
+      self.clip_version = 'ViT-B/32'
+      self.clip_model = self.load_and_freeze_clip(self.clip_version)
+
+      # Conditional action embeddings
+
+      # TODO Number of actions should be the equivalent of `dataset.num_actions`
+      modules.append(EmbedAction(5, self.z_emb_dim))
+      print('EMBED ACTION')
+
+      modules.append(nn.Linear(embed_dim, nf * 4))
+      modules[-1].weight.data = default_initializer()(modules[-1].weight.shape)
+      nn.init.zeros_(modules[-1].bias)
+      modules.append(nn.Linear(nf * 4, nf * 4))
+      modules[-1].weight.data = default_initializer()(modules[-1].weight.shape)
+      nn.init.zeros_(modules[-1].bias)  
 
     AttnBlock = functools.partial(layerspp.AttnBlockpp,
                                   init_scale=init_scale,
@@ -275,9 +300,48 @@ class NCSNpp(nn.Module):
         mapping_layers.append(dense(z_emb_dim, z_emb_dim))
         mapping_layers.append(self.act)
     self.z_transform = nn.Sequential(*mapping_layers)
-    
 
-  def forward(self, x, time_cond, z):
+  def load_and_freeze_clip(self, clip_version):
+        clip_model, clip_preprocess = clip.load(clip_version, device='cpu',
+                                                jit=False)  # Must set jit=False for training
+        clip.model.convert_weights(
+            clip_model)  # Actually this line is unnecessary since clip by default already on float16
+
+        # Freeze CLIP weights
+        clip_model.eval()
+        for p in clip_model.parameters():
+            p.requires_grad = False
+
+        return clip_model
+  
+  def encode_text(self, raw_text):
+        # raw_text - list (batch_size length) of strings with input text prompts
+        device = next(self.parameters()).device
+        max_text_len = 20 # if self.dataset in ['humanml', 'kit'] else None  # Specific hardcoding for humanml dataset
+        if max_text_len is not None:
+            default_context_length = 77
+            context_length = max_text_len + 2 # start_token + 20 + end_token
+            assert context_length < default_context_length
+            texts = clip.tokenize(raw_text, context_length=context_length, truncate=True).to(device) # [bs, context_length] # if n_tokens > context_length -> will truncate
+            # print('texts', texts.shape)
+            zero_pad = torch.zeros([texts.shape[0], default_context_length-context_length], dtype=texts.dtype, device=texts.device)
+            texts = torch.cat([texts, zero_pad], dim=1)
+            # print('texts after pad', texts.shape, texts)
+        else:
+            texts = clip.tokenize(raw_text, truncate=True).to(device) # [bs, context_length] # if n_tokens > 77 -> will truncate
+        return self.clip_model.encode_text(texts).float()
+
+  def mask_cond(self, cond, force_mask=False):
+        bs, d = cond.shape
+        if force_mask:
+            return torch.zeros_like(cond)
+        elif self.training and self.cond_mask_prob > 0.:
+            mask = torch.bernoulli(torch.ones(bs, device=cond.device) * self.cond_mask_prob).view(bs, 1)  # 1-> use null_cond, 0-> use real cond
+            return cond * (1. - mask)
+        else:
+            return cond
+
+  def forward(self, x, time_cond, text_cond, action_cond, z):
     # timestep/noise_level embedding; only for continuous training
     zemb = self.z_transform(z)
     modules = self.all_modules
@@ -288,22 +352,41 @@ class NCSNpp(nn.Module):
       temb = modules[m_idx](torch.log(used_sigmas))
       m_idx += 1
 
-    elif self.embedding_type == 'positional':
+    elif self.embedding_type == 'positional' and self.conditional:
       # Sinusoidal positional embeddings.
       timesteps = time_cond
      
-      temb = layers.get_timestep_embedding(timesteps, self.nf)
+      # Use timestep embeddings
+      # TODO Investigate if MDM implementation of
+      # timesteps is needed
+      temb = modules[m_idx](timesteps)
+      m_idx += 1
+      temb = modules[m_idx](self.act(timesteps))
+      m_idx += 1
+
+      # text embeddings
+      encoded_text = self.encode_text(text_cond)
+      zemb += modules[m_idx](self.mask_cond(encoded_text, force_mask=True))
+
+      m_idx += 1
+
+      # action embeddings
+      action_embedding = modules[m_idx](action_cond)
+      zemb += self.mask_cond(action_embedding, force_mask=True)
+
+      m_idx += 1
 
     else:
       raise ValueError(f'embedding type {self.embedding_type} unknown.')
 
-    if self.conditional:
-      temb = modules[m_idx](temb)
-      m_idx += 1
-      temb = modules[m_idx](self.act(temb))
-      m_idx += 1
-    else:
-      temb = None
+    # MDM handles the forward() passes in it's own models
+    # if self.conditional:
+    #   temb = modules[m_idx](temb)
+    #   m_idx += 1
+    #   temb = modules[m_idx](self.act(temb))
+    #   m_idx += 1
+    # else:
+    #   temb = None
 
     if not self.config.centered:
       # If input data is in [0, 1]

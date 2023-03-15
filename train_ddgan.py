@@ -28,6 +28,8 @@ from torch.multiprocessing import Process
 import torch.distributed as dist
 import shutil
 
+from .fp16_util import MixedPrecisionTrainer
+
 def copy_source(file, output_dir):
     shutil.copyfile(file, os.path.join(output_dir, os.path.basename(file)))
             
@@ -83,6 +85,8 @@ def get_sigma_schedule(args, device):
     sigmas = betas**0.5
     a_s = torch.sqrt(1-betas)
     return sigmas, a_s, betas
+
+
 
 class Diffusion_Coefficients():
     def __init__(self, args, device):
@@ -445,7 +449,7 @@ def train(rank, gpu, args):
             errG = errG.mean()
             
             errG.backward()
-            optimizerG.step()
+            optimizerG.backward()
                 
            
             
