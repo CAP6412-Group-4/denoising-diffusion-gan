@@ -1,7 +1,6 @@
 torch
 torchvision
 pillow
-matplotlib
 tensorboard
 tensorboardX
 lmdb
@@ -10,3 +9,6 @@ scipy
 ninja
 tqdm
 spacy
+numpy==1.23.1
+chumpy
+smplx

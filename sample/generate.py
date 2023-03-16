@@ -125,7 +125,7 @@ def main():
         rep_files = []
         for rep_i in range(args.num_repetitions):
             # caption = all_text[rep_i*args.batch_size + sample_i]
-            length = all_lengths[rep_i*args.batch_size + sample_i]
+            length = 120 # all_lengths[rep_i*args.batch_size + sample_i]
             motion = all_motions[rep_i*args.batch_size + sample_i].transpose(2, 0, 1)[:length]
             save_file = sample_file_template.format(sample_i, rep_i)
             # print(sample_print_template.format(caption, sample_i, rep_i, save_file))

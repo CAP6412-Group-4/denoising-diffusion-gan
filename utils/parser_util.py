@@ -150,7 +150,7 @@ def add_sampling_options(parser):
     group.add_argument("--num_samples", default=10, type=int,
                        help="Maximal number of prompts to sample, "
                             "if loading dataset from file, this field will be ignored.")
-    group.add_argument("--num_repetitions", default=3, type=int,
+    group.add_argument("--num_repetitions", default=1, type=int,
                        help="Number of repetitions, per sample (text prompt/action)")
     group.add_argument("--guidance_param", default=2.5, type=float,
                        help="For classifier-free sampling - specifies the s parameter, as defined in the paper.")
