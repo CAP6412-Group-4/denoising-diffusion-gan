@@ -21,6 +21,7 @@ import shutil
 from data_loaders.tensors import collate
 import test_ddgan as dg
 from score_sde.models.ncsnpp_generator_adagn import NCSNpp
+from score_sde.models.mdm import MDM 
 from model.rotation2xyz import Rotation2xyz
 
 # args: dataset, batch_size, num_samples, output_dir, model_path
@@ -47,7 +48,24 @@ def main():
 
     data, dataset = load_dataset(args, max_frames, n_frames)
 
-    netG = NCSNpp(args).to(device)
+    # netG = NCSNpp(args).to(device)
+    netG = MDM(modeltype='',
+        njoints=263,
+        nfeats=1,
+        num_actions=1,
+        translation=True,
+        pose_rep='rot6d',
+        glob=True,
+        glob_rot=True,
+        latent_dim=512,
+        ff_size=1024,
+        num_layers=8,
+        num_heads=4,
+        dropout=0.1,
+        activation="gelu",
+        data_rep="hml_vec",
+        dataset="humanml",).to(device)
+    
     ckpt = torch.load('./saved_info/dd_gan/{}/{}/netG_{}.pth'.format(args.dataset, args.exp, args.epoch_id), map_location=device)
     
     #loading weights from ddp in single gpu

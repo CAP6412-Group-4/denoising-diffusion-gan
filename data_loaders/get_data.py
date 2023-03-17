@@ -54,4 +54,4 @@ def get_dataset_loader(name, batch_size, num_frames, rank, world_size, split='tr
         sampler = train_sampler
     )
 
-    return loader,train_sampler
+    return loader,train_sampler, dataset

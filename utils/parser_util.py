@@ -15,23 +15,23 @@ def parse_and_load_from_model(parser):
     for group_name in ['dataset', 'model', 'diffusion']:
         args_to_overwrite += get_args_per_group_name(parser, args, group_name)
 
-    # load args from model
-    model_path = get_model_path_from_args()
-    args_path = os.path.join(os.path.dirname(model_path), 'args.json')
-    assert os.path.exists(args_path), 'Arguments json file was not found!'
-    with open(args_path, 'r') as fr:
-        model_args = json.load(fr)
+    # # load args from model
+    # model_path = get_model_path_from_args()
+    # args_path = os.path.join(os.path.dirname(model_path), 'args.json')
+    # assert os.path.exists(args_path), 'Arguments json file was not found!'
+    # with open(args_path, 'r') as fr:
+    #     model_args = json.load(fr)
 
-    for a in args_to_overwrite:
-        if a in model_args.keys():
-            setattr(args, a, model_args[a])
+    # for a in args_to_overwrite:
+    #     if a in model_args.keys():
+    #         setattr(args, a, model_args[a])
 
-        elif 'cond_mode' in model_args: # backward compitability
-            unconstrained = (model_args['cond_mode'] == 'no_cond')
-            setattr(args, 'unconstrained', unconstrained)
+    #     elif 'cond_mode' in model_args: # backward compitability
+    #         unconstrained = (model_args['cond_mode'] == 'no_cond')
+    #         setattr(args, 'unconstrained', unconstrained)
 
-        else:
-            print('Warning: was not able to load [{}], using default value [{}] instead.'.format(a, args.__dict__[a]))
+    #     else:
+    #         print('Warning: was not able to load [{}], using default value [{}] instead.'.format(a, args.__dict__[a]))
 
     if args.cond_mask_prob == 0:
         args.guidance_param = 1
