@@ -66,7 +66,7 @@ class NCSNpp(nn.Module):
     self.config = config
     # self.not_use_tanh = config.not_use_tanh
     # self.act = act = nn.SiLU()
-    self.z_emb_dim = z_emb_dim = config.z_emb_dim
+    self.z_emb_dim = 512
     
     # self.nf = nf = config.num_channels_dae
     # ch_mult = config.ch_mult
@@ -92,7 +92,7 @@ class NCSNpp(nn.Module):
     # combine_method = config.progressive_combine.lower()
     # combiner = functools.partial(Combine, method=combine_method)
     self.input_process = InputProcess(data_rep='rot6d', input_feats=263, latent_dim=self.z_emb_dim)
-    self.output_process = OutputProcess(data_rep='rot6d', input_feats=263, latent_dim=z_emb_dim, njoints=263, nfeats=1)
+    self.output_process = OutputProcess(data_rep='rot6d', input_feats=263, latent_dim=self.z_emb_dim, njoints=263, nfeats=1)
     self.position_encoder = PositionalEncoding(self.z_emb_dim)
     self.timestep_embedder = TimestepEmbedder(self.z_emb_dim, self.position_encoder)
     self.cond_mask_prob = 0.1
@@ -138,12 +138,13 @@ class NCSNpp(nn.Module):
     print('Loading CLIP...')
     self.clip_version = 'ViT-B/32'
     self.clip_model = self.load_and_freeze_clip(self.clip_version)
-
+    self.embedding_type = "positional"
+    self.conditional = True
       # Conditional action embeddings
 
       # TODO Number of actions should be the equivalent of `dataset.num_actions`
-    self.embed_action = EmbedAction(5, self.z_emb_dim)
-    print('EMBED ACTION')
+    # self.embed_action = EmbedAction(5, self.z_emb_dim)
+    # print('EMBED ACTION')
 
       # modules.append(nn.Linear(embed_dim, nf * 4))
       # modules[-1].weight.data = default_initializer()(modules[-1].weight.shape)
@@ -352,7 +353,7 @@ class NCSNpp(nn.Module):
         else:
             return cond
 
-  def forward(self, x, t, text_cond):
+  def forward(self, x, t, y):
     # timestep/noise_level embedding; only for continuous training
     zemb = self.timestep_embedder(t)
    
@@ -366,9 +367,15 @@ class NCSNpp(nn.Module):
 
     if self.embedding_type == 'positional' and self.conditional:
 
+      # print(y.get('uncond', False), y.keys())
+
       # text embeddings
-      encoded_text = self.encode_text(text_cond)
-      zemb += self.embed_text(self.mask_cond(encoded_text, force_mask=False))
+      encoded_text = self.encode_text(y['text'])
+      toAdd = self.embed_text(self.mask_cond(encoded_text, force_mask=True))
+
+      # print(toAdd.size(), encoded_text.size(), len(y['text']), y.get('uncond', False))
+
+      zemb += toAdd
 
       # action embeddings
       # action_embedding = self.embed_action(action_cond)

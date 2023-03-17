@@ -280,9 +280,11 @@ def train(rank, gpu, args):
     optimizerD = optim.Adam(netD.parameters(), lr=args.lr_d, betas = (args.beta1, args.beta2))
     
     optimizerG = optim.Adam(netG.parameters(), lr=args.lr_g, betas = (args.beta1, args.beta2))
+
+    print(optimizerG)
     
-    if args.use_ema:
-        optimizerG = EMA(optimizerG, ema_decay=args.ema_decay)
+    # if args.use_ema:
+        # optimizerG = EMA(optimizerG, ema_decay=args.ema_decay)
     
     schedulerG = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerG, args.num_epoch, eta_min=1e-5)
     schedulerD = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerD, args.num_epoch, eta_min=1e-5)
@@ -290,7 +292,7 @@ def train(rank, gpu, args):
     
     
     #ddp
-    netG = nn.parallel.DistributedDataParallel(netG, device_ids=[gpu])
+    netG = nn.parallel.DistributedDataParallel(netG, device_ids=[gpu], find_unused_parameters=True)
     netD = nn.parallel.DistributedDataParallel(netD, device_ids=[gpu])
 
     
@@ -333,10 +335,13 @@ def train(rank, gpu, args):
     for epoch in range(init_epoch, args.num_epoch+1):
         train_sampler.set_epoch(epoch)
        
-        for iteration, (x, y) in enumerate(data_loader):
+        for iteration, (x, cond) in enumerate(data_loader):
+            
+            cond['y'] =  {key: val.to(device) if torch.is_tensor(val) else val for key, val in cond['y'].items()}
+            y = cond['y']
+
             for p in netD.parameters():  
                 p.requires_grad = True  
-        
             
             netD.zero_grad()
             
@@ -387,7 +392,7 @@ def train(rank, gpu, args):
             latent_z = torch.randn(batch_size, nz, device=device)
             
          
-            x_0_predict = netG(x_tp1.detach(), t, y['text'], y['action'])
+            x_0_predict = netG(x_tp1.detach(), t, y)
             x_pos_sample = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
@@ -416,11 +421,9 @@ def train(rank, gpu, args):
                 
             
             latent_z = torch.randn(batch_size, nz,device=device)
-            
-            
-                
+                 
            
-            x_0_predict = netG(x_tp1.detach(), t, y['text'], y['action'])
+            x_0_predict = netG(x_tp1.detach(), t, y)
             x_pos_sample = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
@@ -430,7 +433,7 @@ def train(rank, gpu, args):
             errG = errG.mean()
             
             errG.backward()
-            optimizerG.backward()
+            optimizerG.step()
                 
            
             
@@ -449,7 +452,7 @@ def train(rank, gpu, args):
         #         torchvision.utils.save_image(x_pos_sample, os.path.join(exp_path, 'xpos_epoch_{}.png'.format(epoch)), normalize=True)
             
             x_t_1 = torch.randn_like(real_data)
-            fake_sample = sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1, T, args)
+            # fake_sample = sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1, T, args)
             # torchvision.utils.save_image(fake_sample, os.path.join(exp_path, 'sample_discrete_epoch_{}.png'.format(epoch)), normalize=True)
             
             if args.save_content:
