@@ -39,15 +39,15 @@ import numpy as np
 from .mdm import PositionalEncoding, TimestepEmbedder, EmbedAction, InputProcess, OutputProcess
 import clip
 
-ResnetBlockDDPM = layerspp.ResnetBlockDDPMpp_Adagn
-ResnetBlockBigGAN = layerspp.ResnetBlockBigGANpp_Adagn
-ResnetBlockBigGAN_one = layerspp.ResnetBlockBigGANpp_Adagn_one
-Combine = layerspp.Combine
-conv3x3 = layerspp.conv3x3
-conv1x1 = layerspp.conv1x1
-get_act = layers.get_act
-default_initializer = layers.default_init
-dense = dense_layer.dense
+# ResnetBlockDDPM = layerspp.ResnetBlockDDPMpp_Adagn
+# ResnetBlockBigGAN = layerspp.ResnetBlockBigGANpp_Adagn
+# ResnetBlockBigGAN_one = layerspp.ResnetBlockBigGANpp_Adagn_one
+# Combine = layerspp.Combine
+# conv3x3 = layerspp.conv3x3
+# conv1x1 = layerspp.conv1x1
+# get_act = layers.get_act
+# default_initializer = layers.default_init
+# dense = dense_layer.dense
 
 class PixelNorm(nn.Module):
     def __init__(self):
@@ -64,32 +64,32 @@ class NCSNpp(nn.Module):
   def __init__(self, config):
     super().__init__()
     self.config = config
-    self.not_use_tanh = config.not_use_tanh
+    # self.not_use_tanh = config.not_use_tanh
     # self.act = act = nn.SiLU()
     self.z_emb_dim = z_emb_dim = config.z_emb_dim
     
-    self.nf = nf = config.num_channels_dae
-    ch_mult = config.ch_mult
-    self.num_res_blocks = num_res_blocks = config.num_res_blocks
-    self.attn_resolutions = attn_resolutions = config.attn_resolutions
-    dropout = config.dropout
-    resamp_with_conv = config.resamp_with_conv
-    self.num_resolutions = num_resolutions = len(ch_mult)
-    self.all_resolutions = all_resolutions = [config.image_size // (2 ** i) for i in range(num_resolutions)]
+    # self.nf = nf = config.num_channels_dae
+    # ch_mult = config.ch_mult
+    # self.num_res_blocks = num_res_blocks = config.num_res_blocks
+    # self.attn_resolutions = attn_resolutions = config.attn_resolutions
+    # dropout = config.dropout
+    # resamp_with_conv = config.resamp_with_conv
+    # self.num_resolutions = num_resolutions = len(ch_mult)
+    # self.all_resolutions = all_resolutions = [config.image_size // (2 ** i) for i in range(num_resolutions)]
 
-    self.conditional = conditional = config.conditional  # noise-conditional
-    fir = config.fir
-    fir_kernel = config.fir_kernel
-    self.skip_rescale = skip_rescale = config.skip_rescale
-    self.resblock_type = resblock_type = config.resblock_type.lower()
-    self.progressive = progressive = config.progressive.lower()
-    self.progressive_input = progressive_input = config.progressive_input.lower()
-    self.embedding_type = embedding_type = config.embedding_type.lower()
-    init_scale = 0.
-    assert progressive in ['none', 'output_skip', 'residual']
-    assert progressive_input in ['none', 'input_skip', 'residual']
-    assert embedding_type in ['fourier', 'positional']
-    combine_method = config.progressive_combine.lower()
+    # self.conditional = conditional = config.conditional  # noise-conditional
+    # fir = config.fir
+    # fir_kernel = config.fir_kernel
+    # self.skip_rescale = skip_rescale = config.skip_rescale
+    # self.resblock_type = resblock_type = config.resblock_type.lower()
+    # self.progressive = progressive = config.progressive.lower()
+    # self.progressive_input = progressive_input = config.progressive_input.lower()
+    # self.embedding_type = embedding_type = config.embedding_type.lower()
+    # init_scale = 0.
+    # assert progressive in ['none', 'output_skip', 'residual']
+    # assert progressive_input in ['none', 'input_skip', 'residual']
+    # assert embedding_type in ['fourier', 'positional']
+    # combine_method = config.progressive_combine.lower()
     # combiner = functools.partial(Combine, method=combine_method)
     self.input_process = InputProcess(data_rep='rot6d', input_feats=263, latent_dim=self.z_emb_dim)
     self.output_process = OutputProcess(data_rep='rot6d', input_feats=263, latent_dim=z_emb_dim, njoints=263, nfeats=1)
@@ -124,7 +124,6 @@ class NCSNpp(nn.Module):
     # else:
     #   raise ValueError(f'embedding type {embedding_type} unknown.')
 
-    if conditional:
       # # conditional timestep embeddings
       # modules.append(nn.Linear(embed_dim, nf * 4))
       # modules[-1].weight.data = default_initializer()(modules[-1].weight.shape)
@@ -133,18 +132,18 @@ class NCSNpp(nn.Module):
       # modules[-1].weight.data = default_initializer()(modules[-1].weight.shape)
       # nn.init.zeros_(modules[-1].bias)
 
-      # Conditional Text Embeddings
-      self.embed_text = nn.Linear(512, self.z_emb_dim)
-      print('EMBED TEXT')
-      print('Loading CLIP...')
-      self.clip_version = 'ViT-B/32'
-      self.clip_model = self.load_and_freeze_clip(self.clip_version)
+    # Conditional Text Embeddings
+    self.embed_text = nn.Linear(512, self.z_emb_dim)
+    print('EMBED TEXT')
+    print('Loading CLIP...')
+    self.clip_version = 'ViT-B/32'
+    self.clip_model = self.load_and_freeze_clip(self.clip_version)
 
       # Conditional action embeddings
 
       # TODO Number of actions should be the equivalent of `dataset.num_actions`
-      self.embed_action = EmbedAction(5, self.z_emb_dim)
-      print('EMBED ACTION')
+    self.embed_action = EmbedAction(5, self.z_emb_dim)
+    print('EMBED ACTION')
 
       # modules.append(nn.Linear(embed_dim, nf * 4))
       # modules[-1].weight.data = default_initializer()(modules[-1].weight.shape)
