@@ -261,26 +261,7 @@ def train(rank, gpu, args):
                                                 sampler=train_sampler,
                                                 drop_last = True)
     
-    netG = MDM(
-        modeltype='',
-        njoints=263,
-        nfeats=1,
-        num_actions=1,
-        translation=True,
-        pose_rep='rot6d',
-        glob=True,
-        glob_rot=True,
-        latent_dim=512,
-        ff_size=1024,
-        num_layers=8,
-        num_heads=4,
-        dropout=0.1,
-        activation="gelu",
-        data_rep="hml_vec",
-        dataset="humanml",
-    )
-
-    netG.to(torch.device(f"cuda:0"))
+    netG = NCSNpp(args).to(device)
 
     # netG = NCSNpp(args).to(device)
 
@@ -406,7 +387,7 @@ def train(rank, gpu, args):
             latent_z = torch.randn(batch_size, nz, device=device)
             
          
-            x_0_predict = netG(x_tp1.detach(), t,y = {})
+            x_0_predict = netG(x_tp1.detach(), t, y['text'], y['action'])
             x_pos_sample = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
@@ -439,7 +420,7 @@ def train(rank, gpu, args):
             
                 
            
-            x_0_predict = netG(x_tp1.detach(), t, y = {})
+            x_0_predict = netG(x_tp1.detach(), t, y['text'], y['action'])
             x_pos_sample = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
