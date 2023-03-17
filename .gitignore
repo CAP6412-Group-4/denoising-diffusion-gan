@@ -44,6 +44,7 @@ Thumbs.db
 *.mov
 *.wmv
 
+
 dataset/
 utils/HumanML3D/
 saved_info/
@@ -51,3 +52,6 @@ saved_info/
 
 cifar-10-python.tar.gz
 venv/
+
+.vscode/
+.vscode/launch.json
