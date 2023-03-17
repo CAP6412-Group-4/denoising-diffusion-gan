@@ -353,9 +353,9 @@ class NCSNpp(nn.Module):
         else:
             return cond
 
-  def forward(self, x, t, text_cond, action_cond):
+  def forward(self, x, t, text_cond):
     # timestep/noise_level embedding; only for continuous training
-    zemb = self.timestep_embedder()
+    zemb = self.timestep_embedder(t)
    
     # if self.embedding_type == 'fourier':
     #   # Gaussian Fourier features embeddings.
@@ -372,8 +372,8 @@ class NCSNpp(nn.Module):
       zemb += self.embed_text(self.mask_cond(encoded_text, force_mask=False))
 
       # action embeddings
-      action_embedding = self.embed_action(action_cond)
-      zemb += self.mask_cond(action_embedding, force_mask=True)
+      # action_embedding = self.embed_action(action_cond)
+      # zemb += self.mask_cond(action_embedding, force_mask=True)
 
     else:
       raise ValueError(f'embedding type {self.embedding_type} unknown.')
