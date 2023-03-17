@@ -64,7 +64,9 @@ def main():
         dropout=0.1,
         activation="gelu",
         data_rep="hml_vec",
-        dataset="humanml",).to(device)
+        dataset="humanml",)
+    
+    netG.to(device)
     
     ckpt = torch.load('./saved_info/dd_gan/{}/{}/netG_{}.pth'.format(args.dataset, args.exp, args.epoch_id), map_location=device)
     
