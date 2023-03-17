@@ -383,7 +383,8 @@ class NCSNpp(nn.Module):
     xseq = self.position_encoder(xseq)  # [seqlen+1, bs, d]
     output = self.transformer_encoder(xseq)[1:]  # , src_key_padding_mask=~maskseq)  # [seqlen, bs, d]
 
-    return self.output_process(output)
+    output = self.output_process(output)
+    return output
 
     # MDM handles the forward() passes in it's own models
     # if self.conditional:
