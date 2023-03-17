@@ -28,7 +28,7 @@ from torch.multiprocessing import Process
 import torch.distributed as dist
 import shutil
 
-from .fp16_util import MixedPrecisionTrainer
+# from .fp16_util import MixedPrecisionTrainer
 
 def copy_source(file, output_dir):
     shutil.copyfile(file, os.path.join(output_dir, os.path.basename(file)))
