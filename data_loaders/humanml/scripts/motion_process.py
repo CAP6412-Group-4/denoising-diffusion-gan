@@ -414,12 +414,18 @@ def recover_rot(data):
 
 def recover_from_ric(data, joints_num):
     r_rot_quat, r_pos = recover_root_rot_pos(data)
+
+    # data.shape = (64, 32, 32, 263)
+    # gets only tensors from 4 to 63 --> positions.shape = (64, 32, 32, 63)
     positions = data[..., 4:(joints_num - 1) * 3 + 4]
+
+    # positions.shape = (64, 32, 32, 21, 3)
     positions = positions.view(positions.shape[:-1] + (-1, 3))
 
     '''Add Y-axis rotation to local joints'''
     positions = qrot(qinv(r_rot_quat[..., None, :]).expand(positions.shape[:-1] + (4,)), positions)
 
+    # Adds joint dimension --> positions.shape = (64, 32, 32, 22, 3)
     '''Add root XZ to joints'''
     positions[..., 0] += r_pos[..., 0:1]
     positions[..., 2] += r_pos[..., 2:3]
