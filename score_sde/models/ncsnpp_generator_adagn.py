@@ -65,7 +65,7 @@ class NCSNpp(nn.Module):
     super().__init__()
     self.config = config
     self.not_use_tanh = config.not_use_tanh
-    self.act = act = nn.SiLU()
+    # self.act = act = nn.SiLU()
     self.z_emb_dim = z_emb_dim = config.z_emb_dim
     
     self.nf = nf = config.num_channels_dae
@@ -90,7 +90,7 @@ class NCSNpp(nn.Module):
     assert progressive_input in ['none', 'input_skip', 'residual']
     assert embedding_type in ['fourier', 'positional']
     combine_method = config.progressive_combine.lower()
-    combiner = functools.partial(Combine, method=combine_method)
+    # combiner = functools.partial(Combine, method=combine_method)
     self.input_process = InputProcess(data_rep='rot6d', input_feats=263, latent_dim=self.z_emb_dim)
     self.output_process = OutputProcess(data_rep='rot6d', input_feats=263, latent_dim=z_emb_dim, njoints=263, nfeats=1)
     self.position_encoder = PositionalEncoding(self.z_emb_dim)
@@ -107,31 +107,31 @@ class NCSNpp(nn.Module):
 
     self.transformer_encoder = nn.TransformerEncoder(encoder_layer=self.transformer_encoder_layer, num_layers=8)
 
-    modules: list[nn.Module] = []
-    # timestep/noise_level embedding; only for continuous training
-    if embedding_type == 'fourier':
-      # Gaussian Fourier features embeddings.
-      #assert config.training.continuous, "Fourier features are only used for continuous training."
+    # modules: list[nn.Module] = []
+    # # timestep/noise_level embedding; only for continuous training
+    # if embedding_type == 'fourier':
+    #   # Gaussian Fourier features embeddings.
+    #   #assert config.training.continuous, "Fourier features are only used for continuous training."
 
-      modules.append(layerspp.GaussianFourierProjection(
-        embedding_size=nf, scale=config.fourier_scale
-      ))
-      embed_dim = 2 * nf
+    #   modules.append(layerspp.GaussianFourierProjection(
+    #     embedding_size=nf, scale=config.fourier_scale
+    #   ))
+    #   embed_dim = 2 * nf
 
-    elif embedding_type == 'positional':
-      embed_dim = nf
+    # elif embedding_type == 'positional':
+    #   embed_dim = nf
 
-    else:
-      raise ValueError(f'embedding type {embedding_type} unknown.')
+    # else:
+    #   raise ValueError(f'embedding type {embedding_type} unknown.')
 
     if conditional:
-      # conditional timestep embeddings
-      modules.append(nn.Linear(embed_dim, nf * 4))
-      modules[-1].weight.data = default_initializer()(modules[-1].weight.shape)
-      nn.init.zeros_(modules[-1].bias)
-      modules.append(nn.Linear(nf * 4, nf * 4))
-      modules[-1].weight.data = default_initializer()(modules[-1].weight.shape)
-      nn.init.zeros_(modules[-1].bias)
+      # # conditional timestep embeddings
+      # modules.append(nn.Linear(embed_dim, nf * 4))
+      # modules[-1].weight.data = default_initializer()(modules[-1].weight.shape)
+      # nn.init.zeros_(modules[-1].bias)
+      # modules.append(nn.Linear(nf * 4, nf * 4))
+      # modules[-1].weight.data = default_initializer()(modules[-1].weight.shape)
+      # nn.init.zeros_(modules[-1].bias)
 
       # Conditional Text Embeddings
       self.embed_text = nn.Linear(512, self.z_emb_dim)
@@ -153,60 +153,60 @@ class NCSNpp(nn.Module):
       # modules[-1].weight.data = default_initializer()(modules[-1].weight.shape)
       # nn.init.zeros_(modules[-1].bias)  
 
-    AttnBlock = functools.partial(layerspp.AttnBlockpp,
-                                  init_scale=init_scale,
-                                  skip_rescale=skip_rescale)
+    # AttnBlock = functools.partial(layerspp.AttnBlockpp,
+    #                               init_scale=init_scale,
+    #                               skip_rescale=skip_rescale)
 
-    Upsample = functools.partial(layerspp.Upsample,
-                                 with_conv=resamp_with_conv, fir=fir, fir_kernel=fir_kernel)
+    # Upsample = functools.partial(layerspp.Upsample,
+    #                              with_conv=resamp_with_conv, fir=fir, fir_kernel=fir_kernel)
 
-    if progressive == 'output_skip':
-      self.pyramid_upsample = layerspp.Upsample(fir=fir, fir_kernel=fir_kernel, with_conv=False)
-    elif progressive == 'residual':
-      pyramid_upsample = functools.partial(layerspp.Upsample,
-                                           fir=fir, fir_kernel=fir_kernel, with_conv=True)
+    # if progressive == 'output_skip':
+    #   self.pyramid_upsample = layerspp.Upsample(fir=fir, fir_kernel=fir_kernel, with_conv=False)
+    # elif progressive == 'residual':
+    #   pyramid_upsample = functools.partial(layerspp.Upsample,
+    #                                        fir=fir, fir_kernel=fir_kernel, with_conv=True)
 
-    Downsample = functools.partial(layerspp.Downsample,
-                                   with_conv=resamp_with_conv, fir=fir, fir_kernel=fir_kernel)
+    # Downsample = functools.partial(layerspp.Downsample,
+    #                                with_conv=resamp_with_conv, fir=fir, fir_kernel=fir_kernel)
 
-    if progressive_input == 'input_skip':
-      self.pyramid_downsample = layerspp.Downsample(fir=fir, fir_kernel=fir_kernel, with_conv=False)
-    elif progressive_input == 'residual':
-      pyramid_downsample = functools.partial(layerspp.Downsample,
-                                             fir=fir, fir_kernel=fir_kernel, with_conv=True)
+    # if progressive_input == 'input_skip':
+    #   self.pyramid_downsample = layerspp.Downsample(fir=fir, fir_kernel=fir_kernel, with_conv=False)
+    # elif progressive_input == 'residual':
+    #   pyramid_downsample = functools.partial(layerspp.Downsample,
+    #                                          fir=fir, fir_kernel=fir_kernel, with_conv=True)
 
-    if resblock_type == 'ddpm':
-      ResnetBlock = functools.partial(ResnetBlockDDPM,
-                                      act=act,
-                                      dropout=dropout,
-                                      init_scale=init_scale,
-                                      skip_rescale=skip_rescale,
-                                      temb_dim=nf * 4,
-                                      zemb_dim = z_emb_dim)
+    # if resblock_type == 'ddpm':
+    #   ResnetBlock = functools.partial(ResnetBlockDDPM,
+    #                                   act=act,
+    #                                   dropout=dropout,
+    #                                   init_scale=init_scale,
+    #                                   skip_rescale=skip_rescale,
+    #                                   temb_dim=nf * 4,
+    #                                   zemb_dim = z_emb_dim)
 
-    elif resblock_type == 'biggan':
-      ResnetBlock = functools.partial(ResnetBlockBigGAN,
-                                      act=act,
-                                      dropout=dropout,
-                                      fir=fir,
-                                      fir_kernel=fir_kernel,
-                                      init_scale=init_scale,
-                                      skip_rescale=skip_rescale,
-                                      temb_dim=nf * 4,
-                                      zemb_dim = z_emb_dim)
-    elif resblock_type == 'biggan_oneadagn':
-      ResnetBlock = functools.partial(ResnetBlockBigGAN_one,
-                                      act=act,
-                                      dropout=dropout,
-                                      fir=fir,
-                                      fir_kernel=fir_kernel,
-                                      init_scale=init_scale,
-                                      skip_rescale=skip_rescale,
-                                      temb_dim=nf * 4,
-                                      zemb_dim = z_emb_dim)
+    # elif resblock_type == 'biggan':
+    #   ResnetBlock = functools.partial(ResnetBlockBigGAN,
+    #                                   act=act,
+    #                                   dropout=dropout,
+    #                                   fir=fir,
+    #                                   fir_kernel=fir_kernel,
+    #                                   init_scale=init_scale,
+    #                                   skip_rescale=skip_rescale,
+    #                                   temb_dim=nf * 4,
+    #                                   zemb_dim = z_emb_dim)
+    # elif resblock_type == 'biggan_oneadagn':
+    #   ResnetBlock = functools.partial(ResnetBlockBigGAN_one,
+    #                                   act=act,
+    #                                   dropout=dropout,
+    #                                   fir=fir,
+    #                                   fir_kernel=fir_kernel,
+    #                                   init_scale=init_scale,
+    #                                   skip_rescale=skip_rescale,
+    #                                   temb_dim=nf * 4,
+    #                                   zemb_dim = z_emb_dim)
 
-    else:
-      raise ValueError(f'resblock type {resblock_type} unrecognized.')
+    # else:
+    #   raise ValueError(f'resblock type {resblock_type} unrecognized.')
 
     # Downsampling block
 
