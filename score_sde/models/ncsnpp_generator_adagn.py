@@ -33,9 +33,8 @@
 
 from . import utils, layers, layerspp, dense_layer
 import torch.nn as nn
-import functools
+# import functools
 import torch
-import numpy as np
 from .mdm import PositionalEncoding, TimestepEmbedder, EmbedAction, InputProcess, OutputProcess
 import clip
 
@@ -47,7 +46,7 @@ import clip
 # conv1x1 = layerspp.conv1x1
 # get_act = layers.get_act
 # default_initializer = layers.default_init
-# dense = dense_layer.dense
+dense = dense_layer.dense
 
 class PixelNorm(nn.Module):
     def __init__(self):
@@ -65,7 +64,7 @@ class NCSNpp(nn.Module):
     super().__init__()
     self.config = config
     # self.not_use_tanh = config.not_use_tanh
-    # self.act = act = nn.SiLU()
+    self.act = nn.SiLU()
     self.z_emb_dim = 512
     
     # self.nf = nf = config.num_channels_dae
@@ -97,7 +96,7 @@ class NCSNpp(nn.Module):
     self.timestep_embedder = TimestepEmbedder(self.z_emb_dim, self.position_encoder)
     self.cond_mask_prob = 0.1
 
-    self.transformer_encoder_layer = nn.TransformerEncoderLayer(
+    transformer_encoder_layer = nn.TransformerEncoderLayer(
       d_model=self.z_emb_dim,
       nhead=4,
       dim_feedforward=1024,
@@ -105,7 +104,7 @@ class NCSNpp(nn.Module):
       activation="gelu",
     )
 
-    self.transformer_encoder = nn.TransformerEncoder(encoder_layer=self.transformer_encoder_layer, num_layers=8)
+    self.transformer_encoder = nn.TransformerEncoder(encoder_layer=transformer_encoder_layer, num_layers=8)
 
     # modules: list[nn.Module] = []
     # # timestep/noise_level embedding; only for continuous training
@@ -305,13 +304,15 @@ class NCSNpp(nn.Module):
     # self.all_modules = nn.ModuleList(modules)
     
     
-    # mapping_layers = [PixelNorm(),
-    #                   dense(config.nz, z_emb_dim),
-    #                   self.act,]
+    mapping_layers = [
+      nn.Linear(128, 400),
+      self.act,
+      nn.Linear(400, 512), 
+    ]
     # for _ in range(config.n_mlp):
-    #     mapping_layers.append(dense(z_emb_dim, z_emb_dim))
+    #     mapping_layers.append(dense(self.z_emb_dim, self.z_emb_dim))
     #     mapping_layers.append(self.act)
-    # self.z_transform = nn.Sequential(*mapping_layers)
+    self.z_transform = nn.Sequential(*mapping_layers)
 
   def load_and_freeze_clip(self, clip_version):
         clip_model, clip_preprocess = clip.load(clip_version, device='cpu',
@@ -353,9 +354,12 @@ class NCSNpp(nn.Module):
         else:
             return cond
 
-  def forward(self, x, t, y):
+  def forward(self, x, t, y, z):
     # timestep/noise_level embedding; only for continuous training
-    zemb = self.timestep_embedder(t)
+    zemb = self.z_transform(z).unsqueeze(0)
+    # print(f"zemb={zemb.shape}")
+
+    zemb += self.timestep_embedder(t)
    
     # if self.embedding_type == 'fourier':
     #   # Gaussian Fourier features embeddings.

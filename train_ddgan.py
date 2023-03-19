@@ -185,7 +185,7 @@ def sample_from_model(coefficients, generator, n_time, x_init, T, opt):
             t_time = t
             latent_z = torch.randn(x.size(0), opt.nz, device=x.device)
             # x_0 = generator(x, t_time, latent_z)
-            x_0 = generator(x, t_time, {})
+            x_0 = generator(x, t_time, latent_z)
             x_new = sample_posterior(coefficients, x_0, x, t)
             x = x_new.detach()
         
@@ -389,10 +389,11 @@ def train(rank, gpu, args):
                     grad_penalty.backward()
 
             # train with fake
-            latent_z = torch.randn(batch_size, nz, device=device)
+            latent_z = torch.randn(batch_size, 128, device=device)
             
+            # print(f"latent_z={latent_z.shape}, t={t.shape}, nz={nz}")
          
-            x_0_predict = netG(x_tp1.detach(), t, y)
+            x_0_predict = netG(x_tp1.detach(), t, y, latent_z)
             x_pos_sample = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
@@ -420,10 +421,10 @@ def train(rank, gpu, args):
             x_t, x_tp1 = q_sample_pairs(coeff, real_data, t)
                 
             
-            latent_z = torch.randn(batch_size, nz,device=device)
+            latent_z = torch.randn(batch_size, 128 ,device=device)
                  
            
-            x_0_predict = netG(x_tp1.detach(), t, y)
+            x_0_predict = netG(x_tp1.detach(), t, y, latent_z)
             x_pos_sample = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
