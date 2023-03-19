@@ -49,9 +49,13 @@ dataset/
 utils/HumanML3D/
 saved_info/
 
+# Virtual environment
+venv
 
 cifar-10-python.tar.gz
 venv/
 
-.vscode/
 .vscode/launch.json
+save/
+
+.vscode/
