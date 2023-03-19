@@ -27,6 +27,8 @@ from data_loaders.get_data import get_dataset_loader
 from torch.multiprocessing import Process
 import torch.distributed as dist
 import shutil
+import train_utils.train_helper as th
+
 
 def copy_source(file, output_dir):
     shutil.copyfile(file, os.path.join(output_dir, os.path.basename(file)))
@@ -160,17 +162,17 @@ def sample_posterior(coefficients, x_0,x_t, t):
     
   
     def p_sample(x_0, x_t, t):
-        mean, _, log_var = q_posterior(x_0, x_t, t)
+        mean, var, log_var = q_posterior(x_0, x_t, t)
         
         noise = torch.randn_like(x_t)
         
         nonzero_mask = (1 - (t == 0).type(torch.float32))
 
-        return mean + nonzero_mask[:,None,None,None] * torch.exp(0.5 * log_var) * noise
+        return mean + nonzero_mask[:,None,None,None] * torch.exp(0.5 * log_var) * noise, {{"mean":mean}, {"var":var}, {"log_var":log_var}, {"noise":noise}}
             
-    sample_x_pos = p_sample(x_0, x_t, t)
+    sample_x_pos, posterior_params = p_sample(x_0, x_t, t)
     
-    return sample_x_pos
+    return sample_x_pos, posterior_params
 
 def sample_from_model(coefficients, generator, n_time, x_init, T, opt):
     x = x_init
@@ -181,7 +183,7 @@ def sample_from_model(coefficients, generator, n_time, x_init, T, opt):
             t_time = t
             latent_z = torch.randn(x.size(0), opt.nz, device=x.device)
             x_0 = generator(x, t_time, latent_z)
-            x_new = sample_posterior(coefficients, x_0, x, t)
+            x_new, _ = sample_posterior(coefficients, x_0, x, t)
             x = x_new.detach()
         
     return x
@@ -380,10 +382,9 @@ def train(rank, gpu, args):
             
          
             x_0_predict = netG(x_tp1.detach(), t, latent_z)
-            x_pos_sample = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
+            x_pos_sample, _ = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
-                
             
             errD_fake = F.softplus(output)
             errD_fake = errD_fake.mean()
@@ -409,17 +410,17 @@ def train(rank, gpu, args):
             
             latent_z = torch.randn(batch_size, nz,device=device)
             
-            
-                
            
             x_0_predict = netG(x_tp1.detach(), t, latent_z)
-            x_pos_sample = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
+            x_pos_sample, post_params = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
-               
+
+            train_helper = th.TrainingHelper(th.LossType.KL)
+            loss = train_helper.training_losses(x_0_predict, post_params['mean'], real_data, noise = post_params['noise'], dataset=args.dataset)
             
             errG = F.softplus(-output)
-            errG = errG.mean()
+            errG = errG.mean() + loss
             
             errG.backward()
             optimizerG.step()
