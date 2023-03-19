@@ -396,7 +396,7 @@ def train(rank, gpu, args):
             # print(f"latent_z={latent_z.shape}, t={t.shape}, nz={nz}")
          
             x_0_predict = netG(x_tp1.detach(), t, y, latent_z)
-            x_pos_sample = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
+            x_pos_sample, _ = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
             
@@ -426,7 +426,7 @@ def train(rank, gpu, args):
                  
            
             x_0_predict = netG(x_tp1.detach(), t, y, latent_z)
-            x_pos_sample = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
+            x_pos_sample, post_params = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
 
