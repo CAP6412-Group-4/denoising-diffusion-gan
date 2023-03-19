@@ -50,7 +50,7 @@ def get_dataset_loader(name, batch_size, num_frames, rank, world_size, split='tr
 
     loader = DataLoader(
         dataset, batch_size=batch_size,
-        num_workers=8, drop_last=True, collate_fn=collate,
+        num_workers=4, drop_last=True, collate_fn=collate,
         sampler = train_sampler
     )
 
