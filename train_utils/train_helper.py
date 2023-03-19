@@ -143,9 +143,13 @@ class TrainingHelper:
         # assuming a.shape == b.shape == bs, J, Jdim, seqlen
         # assuming mask.shape == bs, 1, 1, seqlen
         loss = self.l2_loss(a, b)
-        loss = sum_flat(loss * mask.float())  # gives \sigma_euclidean over unmasked elements
+        if mask is None: mask = torch.zeros(1).to('cuda')
+        # loss = sum_flat(loss * mask.float())  # gives \sigma_euclidean over unmasked elements
+        loss = sum_flat(loss)  # gives \sigma_euclidean over unmasked elements
         n_entries = a.shape[1] * a.shape[2]
-        non_zero_elements = sum_flat(mask) * n_entries
+        # non_zero_elements = sum_flat(mask) * n_entries
+        non_zero_elements = n_entries
+
         # print('mask', mask.shape)
         # print('non_zero_elements', non_zero_elements)
         # print('loss', loss)
@@ -168,7 +172,7 @@ class TrainingHelper:
         """
 
         # enc = model.model._modules['module']
-        mask = model_kwargs['y']['mask']
+        mask = None
         rot2xyz = Rotation2xyz(device='cpu', dataset=dataset)
         data_rep = 'hml_vec'
         rot2xyz_pose_rep = 'xyz' if data_rep in ['xyz', 'hml_vec'] else data_rep
@@ -190,7 +194,7 @@ class TrainingHelper:
                 ModelMeanType.PREVIOUS_X: posterior_mean,
                 ModelMeanType.START_X: x_start,
                 ModelMeanType.EPSILON: noise,
-            }[self.model_mean_type]
+            }[ModelMeanType.START_X]
             assert model_output.shape == target.shape == x_start.shape  # [bs, njoints, nfeats, nframes]
 
             terms["rot_mse"] = self.masked_l2(target, model_output, mask) # mean_flat(rot_mse)

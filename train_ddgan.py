@@ -168,7 +168,7 @@ def sample_posterior(coefficients, x_0,x_t, t):
         
         nonzero_mask = (1 - (t == 0).type(torch.float32))
 
-        return mean + nonzero_mask[:,None,None,None] * torch.exp(0.5 * log_var) * noise, {{"mean":mean}, {"var":var}, {"log_var":log_var}, {"noise":noise}}
+        return mean + nonzero_mask[:,None,None,None] * torch.exp(0.5 * log_var) * noise, {"mean":mean, "var":var, "log_var":log_var, "noise":noise}
             
     sample_x_pos, posterior_params = p_sample(x_0, x_t, t)
     
@@ -416,11 +416,11 @@ def train(rank, gpu, args):
             
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
 
-            train_helper = th.TrainingHelper(th.LossType.KL, data_rep='hml_vec')
+            train_helper = th.TrainingHelper(th.LossType.MSE, data_rep='hml_vec')
             loss = train_helper.training_losses(x_0_predict, post_params['mean'], real_data, noise = post_params['noise'], dataset=args.dataset)
             
-            errG = F.softplus(-output)
-            errG = errG.mean() + loss
+            errG = F.softplus(-output) + loss
+            errG = errG.mean()
             
             errG.backward()
             optimizerG.step()
