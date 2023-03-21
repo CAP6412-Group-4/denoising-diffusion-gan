@@ -67,7 +67,7 @@ def main():
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    x_t_1 = torch.randn(args.batch_size, args.num_channels,args.image_size, args.image_size).to(device)
+    x_t_1 = torch.randn(args.batch_size, args.num_channels,1, args.image_size).to(device)
     sample = dg.sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1,T,  args)
 
     # Recover XYZ *positions* from HumanML3D vector representation

@@ -8,11 +8,12 @@
       "name": "Python: Current File",
       "type": "python",
       "request": "launch",
-      "program": "train_ddgan.py",
-      "args": ["--dataset", "humanml", "--num_channels", "263"],
-      // "args": ["--dataset", "humanml","--batch_size", "64",
-      //         "--num_samples", "10", "--output_dir", "./save", "--exp", "experiment", "--epoch_id", "100",
-      //         "--num_process_per_node", "1", "--node_rank", "0", "--num_timesteps", "4"],
+    "program": "${file}", 
+    //   "program": "train_ddgan.py",
+    //   "args": ["--dataset", "humanml", "--num_channels", "263"],
+      "args": ["--dataset", "humanml","--batch_size", "64",
+              "--num_samples", "4", "--output_dir", "./save", "--exp", "experiment", "--epoch_id", "150",
+              "--num_process_per_node", "1", "--node_rank", "0", "--num_timesteps", "4"],
       "console": "integratedTerminal",
       "justMyCode": true
     }

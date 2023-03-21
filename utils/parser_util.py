@@ -214,7 +214,7 @@ def add_sampling_options(parser):
     parser.add_argument('--image_size', type=int, default=32,
                             help='size of image')
 
-    parser.add_argument('--nz', type=int, default=100)
+    parser.add_argument('--nz', type=int, default=128)
     parser.add_argument('--num_timesteps', type=int, default=4)
     
     
