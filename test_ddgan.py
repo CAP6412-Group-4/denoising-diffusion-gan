@@ -120,7 +120,7 @@ def sample_from_model(coefficients, generator, n_time, x_init, T, opt):
             
             t_time = t
             latent_z = torch.randn(x.size(0), opt.nz, device=x.device)#.to(x.device)
-            x_0 = generator(x, t_time, {'text':'karate'},latent_z)
+            x_0 = generator(x, t_time, {'text': opt.text_prompt},latent_z)
             x_new = sample_posterior(coefficients, x_0, x, t)
             x = x_new.detach()
         

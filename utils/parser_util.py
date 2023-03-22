@@ -211,7 +211,7 @@ def add_sampling_options(parser):
     #geenrator and training
     parser.add_argument('--real_img_dir', default='./pytorch_fid/cifar10_train_stat.npy', help='directory to real images for FID computation')
 
-    parser.add_argument('--image_size', type=int, default=32,
+    parser.add_argument('--image_size', type=int, default=120,
                             help='size of image')
 
     parser.add_argument('--nz', type=int, default=128)
@@ -226,7 +226,7 @@ def add_sampling_options(parser):
 
 def add_generate_options(parser):
     group = parser.add_argument_group('generate')
-    group.add_argument("--motion_length", default=6.0, type=float,
+    group.add_argument("--motion_length", default=9.0, type=float,
                        help="The length of the sampled motion [in seconds]. "
                             "Maximum is 9.8 for HumanML3D (text-to-motion), and 2.0 for HumanAct12 (action-to-motion)")
     group.add_argument("--input_text", default='', type=str,

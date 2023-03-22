@@ -33,14 +33,46 @@ def main():
     max_frames = 196 if args.dataset in ['kit', 'humanml'] else 60
     fps = 12.5 if args.dataset == 'kit' else 20
     n_frames = min(max_frames, int(args.motion_length*fps))
+    is_using_data = not any([args.input_text, args.text_prompt, args.action_file, args.action_name])
+
+
+
     dist_util.setup_dist(device)
     if out_path == '':
         out_path = os.path.join(os.path.dirname(args.model_path), 'samples')
 
+    # this block must be called BEFORE the dataset is loaded
+    if args.text_prompt != '':
+        texts = [args.text_prompt]
+        args.num_samples = 1
+    elif args.input_text != '':
+        assert os.path.exists(args.input_text)
+        with open(args.input_text, 'r') as fr:
+            texts = fr.readlines()
+        texts = [s.replace('\n', '') for s in texts]
+        args.num_samples = len(texts)
+    elif args.action_name:
+        action_text = [args.action_name]
+        args.num_samples = 1
+    elif args.action_file != '':
+        assert os.path.exists(args.action_file)
+        with open(args.action_file, 'r') as fr:
+            action_text = fr.readlines()
+        action_text = [s.replace('\n', '') for s in action_text]
+        args.num_samples = len(action_text)    
+
+    assert args.num_samples <= args.batch_size, \
+        f'Please either increase batch_size({args.batch_size}) or reduce num_samples({args.num_samples})'
+    # So why do we need this check? In order to protect GPU from a memory overload in the following line.
+    # If your GPU can handle batch size larger then default, you can specify it through --batch_size flag.
+    # If it doesn't, and you still want to sample more prompts, run this script with different seeds
+    # (specify through the --seed flag)
+    args.batch_size = args.num_samples  # Sampling a single batch from the testset, with exactly args.num_samples
+
     all_motions = []
     all_lengths = []
     all_text = []
-    total_num_samples = args.num_samples
+    total_num_samples = args.num_samples * args.num_repetitions
     data_rep = 'hml_vec'
     njoints = 263
     nfeats = 1
@@ -56,6 +88,22 @@ def main():
     netG.load_state_dict(ckpt)
     netG.eval()
 
+    if is_using_data:
+        iterator = iter(data)
+        _, model_kwargs = next(iterator)
+    else:
+        collate_args = [{'inp': torch.zeros(n_frames), 'tokens': None, 'lengths': n_frames}] * args.num_samples
+        is_t2m = any([args.input_text, args.text_prompt])
+        if is_t2m:
+            # t2m
+            collate_args = [dict(arg, text=txt) for arg, txt in zip(collate_args, texts)]
+        else:
+            # a2m
+            action = data.dataset.action_name_to_action(action_text)
+            collate_args = [dict(arg, action=one_action, action_text=one_action_text) for
+                            arg, one_action, one_action_text in zip(collate_args, action, action_text)]
+        _, model_kwargs = collate(collate_args)
+
     T = dg.get_time_schedule(args, device)
     
     pos_coeff = dg.Posterior_Coefficients(args, device)
@@ -68,7 +116,9 @@ def main():
         os.makedirs(save_dir)
 
     x_t_1 = torch.randn(args.batch_size, args.num_channels,1, args.image_size).to(device)
-    sample = dg.sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1,T,  args)
+    sample = dg.sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1, T,  args)
+
+    # sample = torch.load('./saved_tensor/sample.pt')
 
     # Recover XYZ *positions* from HumanML3D vector representation
     if data_rep == 'hml_vec':
@@ -77,8 +127,6 @@ def main():
         sample = recover_from_ric(sample, n_joints)
         sample = sample.view(-1, *sample.shape[2:]).permute(0, 2, 3, 1)
 
-    iterator = iter(data)
-    _, model_kwargs = next(iterator)
 
     rot2xyz_pose_rep = 'xyz' if data_rep in ['xyz', 'hml_vec'] else data_rep
     rot2xyz_mask = None if rot2xyz_pose_rep == 'xyz' else model_kwargs['y']['mask'].reshape(args.batch_size, n_frames).bool()
@@ -86,6 +134,13 @@ def main():
     sample = rot2xyz(x=sample, mask=rot2xyz_mask, pose_rep=rot2xyz_pose_rep, glob=True, translation=True,
                             jointstype='smpl', vertstrans=True, betas=None, beta=0, glob_rot=None,
                             get_rotations_back=False)
+
+
+    if args.unconstrained:
+        all_text += ['unconstrained'] * args.num_samples
+    else:
+        text_key = 'text' if 'text' in model_kwargs['y'] else 'action_text'
+        all_text += model_kwargs['y'][text_key]
 
     all_motions.append(sample.cpu().numpy())
     all_lengths.append(model_kwargs['y']['lengths'].cpu().numpy())
@@ -124,19 +179,19 @@ def main():
     for sample_i in range(args.num_samples):
         rep_files = []
         for rep_i in range(args.num_repetitions):
-            # caption = all_text[rep_i*args.batch_size + sample_i]
-            length = 120 # all_lengths[rep_i*args.batch_size + sample_i]
+            caption = all_text[rep_i*args.batch_size + sample_i]
+            length = all_lengths[rep_i*args.batch_size + sample_i]
             motion = all_motions[rep_i*args.batch_size + sample_i].transpose(2, 0, 1)[:length]
             save_file = sample_file_template.format(sample_i, rep_i)
-            # print(sample_print_template.format(caption, sample_i, rep_i, save_file))
+            print(sample_print_template.format(caption, sample_i, rep_i, save_file))
             animation_save_path = os.path.join(out_path, save_file)
-            plot_3d_motion(animation_save_path, skeleton, motion, dataset=args.dataset, title='caption', fps=fps)
+            plot_3d_motion(animation_save_path, skeleton, motion, dataset=args.dataset, title=caption, fps=fps)
             # Credit for visualization: https://github.com/EricGuo5513/text-to-motion
             rep_files.append(animation_save_path)
 
         sample_files = save_multiple_samples(args, out_path,
                                                row_print_template, all_print_template, row_file_template, all_file_template,
-                                               'caption', num_samples_in_out_file, rep_files, sample_files, sample_i)
+                                               caption, num_samples_in_out_file, rep_files, sample_files, sample_i)
 
     abs_path = os.path.abspath(out_path)
     print(f'[Done] Results are at [{abs_path}]')

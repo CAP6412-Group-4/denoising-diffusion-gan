@@ -11,9 +11,9 @@
     "program": "${file}", 
     //   "program": "train_ddgan.py",
     //   "args": ["--dataset", "humanml", "--num_channels", "263"],
-      "args": ["--dataset", "humanml","--batch_size", "64",
-              "--num_samples", "4", "--output_dir", "./save", "--exp", "experiment", "--epoch_id", "150",
-              "--num_process_per_node", "1", "--node_rank", "0", "--num_timesteps", "4"],
+      "args": ["--dataset", "humanml","--batch_size", "1",
+              "--num_samples", "1", "--output_dir", "./save", "--exp", "experiment", "--epoch_id", "150",
+              "--num_process_per_node", "1", "--node_rank", "0", "--num_timesteps", "4","--text_prompt","'A person jumping'"],
       "console": "integratedTerminal",
       "justMyCode": true
     }
