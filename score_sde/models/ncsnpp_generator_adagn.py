@@ -371,11 +371,11 @@ class NCSNpp(nn.Module):
 
     if self.embedding_type == 'positional' and self.conditional:
 
-      # print(y.get('uncond', False), y.keys())
+      # force_masky.get('uncond', False), y.keys())
 
       # text embeddings
       encoded_text = self.encode_text(y['text'])
-      toAdd = self.embed_text(self.mask_cond(encoded_text, force_mask=True))
+      toAdd = self.embed_text(self.mask_cond(encoded_text, force_mask=False))
 
       # print(toAdd.size(), encoded_text.size(), len(y['text']), y.get('uncond', False))
 
