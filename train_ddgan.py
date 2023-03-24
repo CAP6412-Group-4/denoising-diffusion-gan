@@ -405,7 +405,7 @@ def train(rank, gpu, args):
             errD_fake.backward()
     
             
-            errD = errD_real + errD_fake
+            errD = errD_real + errD_fake + grad_penalty
             # Update D
             optimizerD.step()
             
