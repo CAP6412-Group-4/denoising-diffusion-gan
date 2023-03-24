@@ -285,8 +285,8 @@ def train(rank, gpu, args):
 
     print(optimizerG)
     
-    # if args.use_ema:
-        # optimizerG = EMA(optimizerG, ema_decay=args.ema_decay)
+    if args.use_ema:
+        optimizerG = EMA(optimizerG, ema_decay=args.ema_decay)
     
     schedulerG = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerG, args.num_epoch, eta_min=1e-5)
     schedulerD = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerD, args.num_epoch, eta_min=1e-5)
