@@ -36,6 +36,7 @@ import torch.nn as nn
 import functools
 import torch
 import numpy as np
+import clip
 
 
 ResnetBlockDDPM = layerspp.ResnetBlockDDPMpp_Adagn
@@ -68,6 +69,11 @@ class NCSNpp(nn.Module):
     self.act = act = nn.SiLU()
     # self.z_emb_dim = z_emb_dim = config.z_emb_dim
     self.z_emb_dim = z_emb_dim = 256
+    self.embed_text = nn.Linear(512, self.z_emb_dim)
+    print('EMBED TEXT')
+    print('Loading CLIP...')
+    self.clip_version = 'ViT-B/32'
+    self.clip_model = self.load_and_freeze_clip(self.clip_version)
 
     
     # self.nf = nf = config.num_channels_dae
@@ -311,9 +317,49 @@ class NCSNpp(nn.Module):
         mapping_layers.append(dense(z_emb_dim, z_emb_dim))
         mapping_layers.append(self.act)
     self.z_transform = nn.Sequential(*mapping_layers)
+
+  def load_and_freeze_clip(self, clip_version):
+        clip_model, clip_preprocess = clip.load(clip_version, device='cpu',
+                                                jit=False)  # Must set jit=False for training
+        clip.model.convert_weights(
+            clip_model)  # Actually this line is unnecessary since clip by default already on float16
+
+        # Freeze CLIP weights
+        clip_model.eval()
+        for p in clip_model.parameters():
+            p.requires_grad = False
+
+        return clip_model
+  
+  def encode_text(self, raw_text):
+        # raw_text - list (batch_size length) of strings with input text prompts
+        device = next(self.parameters()).device
+        max_text_len = 20 # if self.dataset in ['humanml', 'kit'] else None  # Specific hardcoding for humanml dataset
+        if max_text_len is not None:
+            default_context_length = 77
+            context_length = max_text_len + 2 # start_token + 20 + end_token
+            assert context_length < default_context_length
+            texts = clip.tokenize(raw_text, context_length=context_length, truncate=True).to(device) # [bs, context_length] # if n_tokens > context_length -> will truncate
+            # print('texts', texts.shape)
+            zero_pad = torch.zeros([texts.shape[0], default_context_length-context_length], dtype=texts.dtype, device=texts.device)
+            texts = torch.cat([texts, zero_pad], dim=1)
+            # print('texts after pad', texts.shape, texts)
+        else:
+            texts = clip.tokenize(raw_text, truncate=True).to(device) # [bs, context_length] # if n_tokens > 77 -> will truncate
+        return self.clip_model.encode_text(texts).float()
+
+  def mask_cond(self, cond, force_mask=False):
+        bs, d = cond.shape
+        if force_mask:
+            return torch.zeros_like(cond)
+        elif self.training and self.cond_mask_prob > 0.:
+            mask = torch.bernoulli(torch.ones(bs, device=cond.device) * self.cond_mask_prob).view(bs, 1)  # 1-> use null_cond, 0-> use real cond
+            return cond * (1. - mask)
+        else:
+            return cond
     
 
-  def forward(self, x, time_cond, z):
+  def forward(self, x, time_cond, y, z):
     # timestep/noise_level embedding; only for continuous training
     zemb = self.z_transform(z)
     modules = self.all_modules
@@ -329,6 +375,11 @@ class NCSNpp(nn.Module):
       timesteps = time_cond
      
       temb = layers.get_timestep_embedding(timesteps, self.nf)
+
+      encoded_text = self.encode_text(y['text'])
+      toAdd = self.embed_text(self.mask_cond(encoded_text, force_mask=False))
+
+      zemb += toAdd
 
     else:
       raise ValueError(f'embedding type {self.embedding_type} unknown.')

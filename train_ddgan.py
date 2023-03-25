@@ -327,12 +327,15 @@ def train(rank, gpu, args):
     for epoch in range(init_epoch, args.num_epoch+1):
         train_sampler.set_epoch(epoch)
        
-        for iteration, (x, y) in enumerate(data_loader):
+        for iteration, (x, cond) in enumerate(data_loader):
             for p in netD.parameters():  
                 p.requires_grad = True  
         
             
             netD.zero_grad()
+
+            cond['y'] =  {key: val.to(device) if torch.is_tensor(val) else val for key, val in cond['y'].items()}
+            y = cond['y']
             
             #sample from p(x_0)
             real_data = x.to(device, non_blocking=True)
@@ -381,7 +384,7 @@ def train(rank, gpu, args):
             latent_z = torch.randn(batch_size, nz, device=device)
             
          
-            x_0_predict = netG(x_tp1.detach(), t, latent_z)
+            x_0_predict = netG(x_tp1.detach(), t, y, latent_z)
             x_pos_sample, _ = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)

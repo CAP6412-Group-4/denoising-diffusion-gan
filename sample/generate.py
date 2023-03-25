@@ -33,14 +33,43 @@ def main():
     max_frames = 196 if args.dataset in ['kit', 'humanml'] else 60
     fps = 12.5 if args.dataset == 'kit' else 20
     n_frames = min(max_frames, int(args.motion_length*fps))
+    is_using_data = not any([args.input_text, args.text_prompt, args.action_file, args.action_name])
     dist_util.setup_dist(device)
     if out_path == '':
         out_path = os.path.join(os.path.dirname(args.model_path), 'samples')
 
+    # this block must be called BEFORE the dataset is loaded
+    if args.text_prompt != '':
+        texts = [args.text_prompt]
+        args.num_samples = 1
+    elif args.input_text != '':
+        assert os.path.exists(args.input_text)
+        with open(args.input_text, 'r') as fr:
+            texts = fr.readlines()
+        texts = [s.replace('\n', '') for s in texts]
+        args.num_samples = len(texts)
+    elif args.action_name:
+        action_text = [args.action_name]
+        args.num_samples = 1
+    elif args.action_file != '':
+        assert os.path.exists(args.action_file)
+        with open(args.action_file, 'r') as fr:
+            action_text = fr.readlines()
+        action_text = [s.replace('\n', '') for s in action_text]
+        args.num_samples = len(action_text)    
+
+    assert args.num_samples <= args.batch_size, \
+        f'Please either increase batch_size({args.batch_size}) or reduce num_samples({args.num_samples})'
+    # So why do we need this check? In order to protect GPU from a memory overload in the following line.
+    # If your GPU can handle batch size larger then default, you can specify it through --batch_size flag.
+    # If it doesn't, and you still want to sample more prompts, run this script with different seeds
+    # (specify through the --seed flag)
+    args.batch_size = args.num_samples  # Sampling a single batch from the testset, with exactly args.num_samples
+
     all_motions = []
     all_lengths = []
     all_text = []
-    total_num_samples = args.num_samples
+    total_num_samples = args.num_samples 
     data_rep = 'hml_vec'
     njoints = 263
     nfeats = 1
@@ -56,6 +85,22 @@ def main():
     netG.load_state_dict(ckpt)
     netG.eval()
 
+    if is_using_data:
+        iterator = iter(data)
+        _, model_kwargs = next(iterator)
+    else:
+        collate_args = [{'inp': torch.zeros(n_frames), 'tokens': None, 'lengths': n_frames}] * args.num_samples
+        is_t2m = any([args.input_text, args.text_prompt])
+        if is_t2m:
+            # t2m
+            collate_args = [dict(arg, text=txt) for arg, txt in zip(collate_args, texts)]
+        else:
+            # a2m
+            action = data.dataset.action_name_to_action(action_text)
+            collate_args = [dict(arg, action=one_action, action_text=one_action_text) for
+                            arg, one_action, one_action_text in zip(collate_args, action, action_text)]
+        _, model_kwargs = collate(collate_args)
+
     T = dg.get_time_schedule(args, device)
     
     pos_coeff = dg.Posterior_Coefficients(args, device)
@@ -67,8 +112,8 @@ def main():
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    x_t_1 = torch.randn(args.batch_size, args.num_channels,args.image_size, args.image_size).to(device)
-    sample = dg.sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1,T,  args)
+    x_t_1 = torch.randn(args.batch_size, args.num_channels,1, args.image_size).to(device)
+    sample = dg.sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1, T,  args)
 
     # Recover XYZ *positions* from HumanML3D vector representation
     if data_rep == 'hml_vec':
