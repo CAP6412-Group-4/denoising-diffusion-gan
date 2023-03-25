@@ -115,6 +115,7 @@ class NCSNpp(nn.Module):
     self.progressive_input = progressive_input = 'residual'
     self.embedding_type = embedding_type = 'positional'
     init_scale = 0.
+    self.cond_mask_prob = 0.1
     assert progressive in ['none', 'output_skip', 'residual']
     assert progressive_input in ['none', 'input_skip', 'residual']
     assert embedding_type in ['fourier', 'positional']

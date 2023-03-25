@@ -414,7 +414,7 @@ def train(rank, gpu, args):
             latent_z = torch.randn(batch_size, nz,device=device)
             
            
-            x_0_predict = netG(x_tp1.detach(), t, latent_z)
+            x_0_predict = netG(x_tp1.detach(), t, y,latent_z)
             x_pos_sample, post_params = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             
             output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
