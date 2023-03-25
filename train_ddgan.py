@@ -182,7 +182,7 @@ def sample_from_model(coefficients, generator, n_time, x_init, T, opt):
           
             t_time = t
             latent_z = torch.randn(x.size(0), opt.nz, device=x.device)
-            x_0 = generator(x, t_time, latent_z)
+            x_0 = generator(x, t_time, {'text':opt.input_text}, latent_z)
             x_new, _ = sample_posterior(coefficients, x_0, x, t)
             x = x_new.detach()
         
@@ -444,8 +444,8 @@ def train(rank, gpu, args):
         #     if epoch % 10 == 0:
         #         torchvision.utils.save_image(x_pos_sample, os.path.join(exp_path, 'xpos_epoch_{}.png'.format(epoch)), normalize=True)
             
-            x_t_1 = torch.randn_like(real_data)
-            fake_sample = sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1, T, args)
+            # x_t_1 = torch.randn_like(real_data)
+            # fake_sample = sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1, T, args)
             # torchvision.utils.save_image(fake_sample, os.path.join(exp_path, 'sample_discrete_epoch_{}.png'.format(epoch)), normalize=True)
             
             if args.save_content:
