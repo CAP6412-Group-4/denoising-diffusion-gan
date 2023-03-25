@@ -131,6 +131,12 @@ def main():
     sample = rot2xyz(x=sample, mask=rot2xyz_mask, pose_rep=rot2xyz_pose_rep, glob=True, translation=True,
                             jointstype='smpl', vertstrans=True, betas=None, beta=0, glob_rot=None,
                             get_rotations_back=False)
+    
+    if args.unconstrained:
+        all_text += ['unconstrained'] * args.num_samples
+    else:
+        text_key = 'text' if 'text' in model_kwargs['y'] else 'action_text'
+        all_text += model_kwargs['y'][text_key]
 
     all_motions.append(sample.cpu().numpy())
     all_lengths.append(model_kwargs['y']['lengths'].cpu().numpy())
