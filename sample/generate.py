@@ -169,13 +169,13 @@ def main():
     for sample_i in range(args.num_samples):
         rep_files = []
         for rep_i in range(args.num_repetitions):
-            # caption = all_text[rep_i*args.batch_size + sample_i]
-            length = 120 # all_lengths[rep_i*args.batch_size + sample_i]
+            caption = all_text[rep_i*args.batch_size + sample_i]
+            length = all_lengths[rep_i*args.batch_size + sample_i]
             motion = all_motions[rep_i*args.batch_size + sample_i].transpose(2, 0, 1)[:length]
             save_file = sample_file_template.format(sample_i, rep_i)
-            # print(sample_print_template.format(caption, sample_i, rep_i, save_file))
+            print(sample_print_template.format(caption, sample_i, rep_i, save_file))
             animation_save_path = os.path.join(out_path, save_file)
-            plot_3d_motion(animation_save_path, skeleton, motion, dataset=args.dataset, title='caption', fps=fps)
+            plot_3d_motion(animation_save_path, skeleton, motion, dataset=args.dataset, title=caption, fps=fps)
             # Credit for visualization: https://github.com/EricGuo5513/text-to-motion
             rep_files.append(animation_save_path)
 
