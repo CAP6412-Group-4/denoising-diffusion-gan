@@ -391,7 +391,7 @@ def train(rank, gpu, args):
                     grad_penalty.backward()
 
             # train with fake
-            latent_z = torch.randn(batch_size, 128, device=device)
+            latent_z = torch.randn(batch_size, 512, device=device)
             
             # print(f"latent_z={latent_z.shape}, t={t.shape}, nz={nz}")
          
@@ -422,7 +422,7 @@ def train(rank, gpu, args):
             x_t, x_tp1 = q_sample_pairs(coeff, real_data, t)
                 
             
-            latent_z = torch.randn(batch_size, 128 ,device=device)
+            latent_z = torch.randn(batch_size, 512 ,device=device)
                  
            
             x_0_predict = netG(x_tp1.detach(), t, y, latent_z)
@@ -433,7 +433,7 @@ def train(rank, gpu, args):
             train_helper = th.TrainingHelper(th.LossType.MSE, data_rep='hml_vec')
             loss = train_helper.training_losses(x_0_predict, post_params['mean'], real_data, noise = post_params['noise'], dataset=args.dataset)
             
-            errG = F.softplus(-output) + loss
+            errG = F.softplus(-output) + (1.1 * loss)
             errG = errG.mean()
             
             errG.backward()
@@ -442,7 +442,7 @@ def train(rank, gpu, args):
            
             
             global_step += 1
-            if iteration % 100 == 0:
+            if iteration % 300 == 0:
                 if rank == 0:
                     print('epoch {} iteration{}, G Loss: {}, D Loss: {}'.format(epoch,iteration, errG.item(), errD.item()))
         
@@ -562,7 +562,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_epoch', type=int, default=1200)
     parser.add_argument('--ngf', type=int, default=64)
 
-    parser.add_argument('--lr_g', type=float, default=1.5e-4, help='learning rate g')
+    parser.add_argument('--lr_g', type=float, default=1.6e-4, help='learning rate g')
     parser.add_argument('--lr_d', type=float, default=1e-4, help='learning rate d')
     parser.add_argument('--beta1', type=float, default=0.5,
                             help='beta1 for adam')

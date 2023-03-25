@@ -451,7 +451,7 @@ class ResidualBlock(nn.Module):
 
     self.normalize1 = normalization(input_dim)
 
-  def forward(self, x):
+  def forward(self, x: torch.Tensor):
     output = self.normalize1(x)
     output = self.non_linearity(output)
     output = self.conv1(output)

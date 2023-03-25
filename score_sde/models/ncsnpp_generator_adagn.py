@@ -27,7 +27,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pylint: skip-file
 ''' Codes adapted from https://github.com/yang-song/score_sde_pytorch/blob/main/models/ncsnpp.py
 '''
 
@@ -96,15 +95,20 @@ class NCSNpp(nn.Module):
     self.timestep_embedder = TimestepEmbedder(self.z_emb_dim, self.position_encoder)
     self.cond_mask_prob = 0.1
 
+    self.res1 = layers.ResidualBlock(197, 200)
+    self.res2 = layers.ResidualBlock(200, 197)
+
     transformer_encoder_layer = nn.TransformerEncoderLayer(
       d_model=self.z_emb_dim,
-      nhead=4,
+      nhead=8,
       dim_feedforward=1024,
       dropout=0.1,
       activation="gelu",
     )
 
     self.transformer_encoder = nn.TransformerEncoder(encoder_layer=transformer_encoder_layer, num_layers=8)
+
+    self.res3 = layers.ResidualBlock(196, 196)
 
     # modules: list[nn.Module] = []
     # # timestep/noise_level embedding; only for continuous training
@@ -304,14 +308,17 @@ class NCSNpp(nn.Module):
     # self.all_modules = nn.ModuleList(modules)
     
     
-    mapping_layers = [
-      nn.Linear(128, 400),
-      self.act,
-      nn.Linear(400, 512), 
-    ]
-    # for _ in range(config.n_mlp):
-    #     mapping_layers.append(dense(self.z_emb_dim, self.z_emb_dim))
-    #     mapping_layers.append(self.act)
+    # mapping_layers = [
+    #   nn.Linear(128, 400),
+    #   self.act,
+    #   nn.Linear(400, 512), 
+    # ]
+    mapping_layers = [PixelNorm(),
+                      dense(512, self.z_emb_dim),
+                      self.act,]
+    for _ in range(config.n_mlp):
+        mapping_layers.append(dense(self.z_emb_dim, self.z_emb_dim))
+        mapping_layers.append(self.act)
     self.z_transform = nn.Sequential(*mapping_layers)
 
   def load_and_freeze_clip(self, clip_version):
@@ -391,8 +398,11 @@ class NCSNpp(nn.Module):
     # adding the timestep embed
     xseq = torch.cat((zemb, x), axis=0)  # [seqlen+1, bs, d]
     xseq = self.position_encoder(xseq)  # [seqlen+1, bs, d]
-    output = self.transformer_encoder(xseq)[1:]  # , src_key_padding_mask=~maskseq)  # [seqlen, bs, d]
-
+    output = self.res1(xseq)
+    output = self.res2(output)
+    output = self.transformer_encoder(output)[1:]  # , src_key_padding_mask=~maskseq)  # [seqlen, bs, d]
+    output = self.res3(output)
+    output = self.act(output)
     output = self.output_process(output)
     return output
 
