@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-from model.mdm import InputProcess, PositionalEncoding, TimestepEmbedder
+from model.mdm import InputProcess, OutputProcess, PositionalEncoding, TimestepEmbedder
 import clip
 
 from . import up_or_down_sampling
@@ -39,20 +39,81 @@ get_sinusoidal_positional_embedding = layers.get_timestep_embedding
 #         return temb
 #%%
 
-class MotionConvBlock(nn.Module):
-    def __init__(self):
+class MotionDiscriminator(nn.Module):
+    def __init__(self, t_emb_dim: int):
         super().__init__()
-        self.input_process = InputProcess(data_rep='rot6d', input_feats=263, latent_dim=self.z_emb_dim)
+
+        self.clip_version = 'ViT-B/32'
+        self.clip_model = self.load_and_freeze_clip(self.clip_version)
+        self.position_encoder = PositionalEncoding(t_emb_dim)
+
+        self.input_process = InputProcess(data_rep='rot6d', input_feats=263, latent_dim=t_emb_dim)
+        self.timestep_embedder = TimestepEmbedder(t_emb_dim, self.position_encoder)
+        self.text_embedder = nn.Linear(512, t_emb_dim)
 
         self.act = nn.GELU()
-        self.conv1 = nn.Conv1d(263, 200)
-        self.conv2 = nn.Conv1d()
+        self.conv1 = nn.Conv1d(263, 200, kernel_size=5)
+        self.conv2 = nn.Conv1d(200, 150, kernel_size=3)
+        self.conv3 = nn.Conv1d(150, 75, kernel_size=5)
 
-        self.fc = nn.Linear()
+        self.output_process = OutputProcess(data_rep='rot6d', input_feats=263, latent_dim=t_emb_dim, njoints=263, nfeats=1)
 
-    def forward(self, input, emb):
-        # TODO concat embeddings (time + text)
-        input = self.input_process(input)
+        self.fc = nn.Linear(263, 1)
+
+    def load_and_freeze_clip(self, clip_version):
+        clip_model, clip_preprocess = clip.load(clip_version, device='cpu',
+                                                jit=False)  # Must set jit=False for training
+        clip.model.convert_weights(
+            clip_model)  # Actually this line is unnecessary since clip by default already on float16
+
+        # Freeze CLIP weights
+        clip_model.eval()
+        for p in clip_model.parameters():
+            p.requires_grad = False
+
+        return clip_model
+  
+    def encode_text(self, raw_text):
+        # raw_text - list (batch_size length) of strings with input text prompts
+        device = next(self.parameters()).device
+        max_text_len = 20 # if self.dataset in ['humanml', 'kit'] else None  # Specific hardcoding for humanml dataset
+        if max_text_len is not None:
+            default_context_length = 77
+            context_length = max_text_len + 2 # start_token + 20 + end_token
+            assert context_length < default_context_length
+            texts = clip.tokenize(raw_text, context_length=context_length, truncate=True).to(device) # [bs, context_length] # if n_tokens > context_length -> will truncate
+            # print('texts', texts.shape)
+            zero_pad = torch.zeros([texts.shape[0], default_context_length-context_length], dtype=texts.dtype, device=texts.device)
+            texts = torch.cat([texts, zero_pad], dim=1)
+            # print('texts after pad', texts.shape, texts)
+        else:
+            texts = clip.tokenize(raw_text, truncate=True).to(device) # [bs, context_length] # if n_tokens > 77 -> will truncate
+        return self.clip_model.encode_text(texts).float()
+
+    def mask_cond(self, cond, force_mask=False):
+        bs, d = cond.shape
+        if force_mask:
+            return torch.zeros_like(cond)
+        else:
+            return cond
+
+    def forward(self, x, t, x_t, y):
+        emb = self.timestep_embedder(t)
+        input = self.input_process(x)
+
+        encoded_text = self.encode_text(y['text'])
+        emb += self.text_embedder(self.mask_cond(encoded_text, force_mask=False))
+        
+        input = self.position_encoder(torch.cat(emb, x), axis=0)
+
+        output = self.act(self.conv1(input))
+        output = self.act(self.conv2(input))
+        output = self.act(self.conv3(input))
+
+        output = self.output_process(output)
+        output = self.fc(output)
+
+        return torch.sigmoid(output)
 
 
 class DownConvBlock(nn.Module):
@@ -126,6 +187,10 @@ class Discriminator_small(nn.Module):
         PositionalEncoding(self.t_emb_dim)
     )
     
+    
+    
+     
+     
      
     # Encoding layers where the resolution decreases
     # self.start_conv = conv2d(nc,ngf*2,1, padding=0)
@@ -135,7 +200,11 @@ class Discriminator_small(nn.Module):
     
     
     # self.conv3 = DownConvBlock(ngf*4, ngf*8,  t_emb_dim = t_emb_dim, downsample=downsample,act=act)
+    
+    
+    self.conv4 = DownConvBlock(ngf*8, ngf*8, t_emb_dim = t_emb_dim, downsample=downsample,act=act)
 
+    self.conv4 = DownConvBlock(ngf*8, ngf*8, t_emb_dim = t_emb_dim, downsample=downsample,act=act)
     
     # self.conv4 = DownConvBlock(ngf*8, ngf*8, t_emb_dim = t_emb_dim, downsample=downsample,act=act)
     

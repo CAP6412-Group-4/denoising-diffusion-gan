@@ -27,6 +27,7 @@ from data_loaders.get_data import get_dataset_loader
 from torch.multiprocessing import Process
 import torch.distributed as dist
 import shutil
+from score_sde.models.discriminator import MotionDiscriminator
 import train_utils.train_helper as th
 
 
@@ -267,14 +268,17 @@ def train(rank, gpu, args):
 
     # netG = NCSNpp(args).to(device)
 
-    if args.use_small_d:    
-        netD = Discriminator_small(nc = 2*args.num_channels, ngf = args.ngf,
-                               t_emb_dim = args.t_emb_dim,
-                               act=nn.LeakyReLU(0.2), downsample=False if mdm else True).to(device)
-    else:
-        netD = Discriminator_large(nc = 2*args.num_channels, ngf = args.ngf, 
-                                   t_emb_dim = 512,
-                                   act=nn.LeakyReLU(0.2), downsample=False if mdm else True).to(device)
+    # if args.use_small_d:    
+    #     netD = Discriminator_small(nc = 2*args.num_channels, ngf = args.ngf,
+    #                            t_emb_dim = args.t_emb_dim,
+    #                            act=nn.LeakyReLU(0.2), downsample=False if mdm else True).to(device)
+    # else:
+    #     netD = Discriminator_large(nc = 2*args.num_channels, ngf = args.ngf, 
+    #                                t_emb_dim = 512,
+    #                                act=nn.LeakyReLU(0.2), downsample=False if mdm else True).to(device)
+
+    netD = MotionDiscriminator(t_emb_dim=512)
+    netD.to(device)
     
     broadcast_params(netG.parameters())
     broadcast_params(netD.parameters())
