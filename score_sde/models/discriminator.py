@@ -8,6 +8,9 @@ import torch
 import torch.nn as nn
 import numpy as np
 
+from model.mdm import InputProcess, PositionalEncoding, TimestepEmbedder
+import clip
+
 from . import up_or_down_sampling
 from . import dense_layer
 from . import layers
@@ -16,25 +19,42 @@ dense = dense_layer.dense
 conv2d = dense_layer.conv2d
 get_sinusoidal_positional_embedding = layers.get_timestep_embedding
 
-class TimestepEmbedding(nn.Module):
-    def __init__(self, embedding_dim, hidden_dim, output_dim, act=nn.LeakyReLU(0.2)):
-        super().__init__()
+# class TimestepEmbedding(nn.Module):
+#     def __init__(self, embedding_dim, hidden_dim, output_dim, act=nn.LeakyReLU(0.2)):
+#         super().__init__()
 
-        self.embedding_dim = embedding_dim
-        self.output_dim = output_dim
-        self.hidden_dim = hidden_dim
+#         self.embedding_dim = embedding_dim
+#         self.output_dim = output_dim
+#         self.hidden_dim = hidden_dim
 
-        self.main = nn.Sequential(
-            dense(embedding_dim, hidden_dim),
-            act,
-            dense(hidden_dim, output_dim),
-        )
+#         self.main = nn.Sequential(
+#             dense(embedding_dim, hidden_dim),
+#             act,
+#             dense(hidden_dim, output_dim),
+#         )
 
-    def forward(self, temp):
-        temb = get_sinusoidal_positional_embedding(temp, self.embedding_dim)
-        temb = self.main(temb)
-        return temb
+#     def forward(self, temp):
+#         temb = get_sinusoidal_positional_embedding(temp, self.embedding_dim)
+#         temb = self.main(temb)
+#         return temb
 #%%
+
+class MotionConvBlock(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.input_process = InputProcess(data_rep='rot6d', input_feats=263, latent_dim=self.z_emb_dim)
+
+        self.act = nn.GELU()
+        self.conv1 = nn.Conv1d(263, 200)
+        self.conv2 = nn.Conv1d()
+
+        self.fc = nn.Linear()
+
+    def forward(self, input, emb):
+        # TODO concat embeddings (time + text)
+        input = self.input_process(input)
+
+
 class DownConvBlock(nn.Module):
     def __init__(
         self,
@@ -96,45 +116,39 @@ class DownConvBlock(nn.Module):
 class Discriminator_small(nn.Module):
   """A time-dependent discriminator for small images (CIFAR10, StackMNIST)."""
 
-  def __init__(self, nc = 3, ngf = 64, t_emb_dim = 128, act=nn.LeakyReLU(0.2), downsample=True):
+  def __init__(self, nc = 3, ngf = 64, t_emb_dim = 512, act=nn.LeakyReLU(0.2), downsample=True):
     super().__init__()
     # Gaussian random feature embedding layer for time
     self.act = act
     
-    
-    self.t_embed = TimestepEmbedding(
-        embedding_dim=t_emb_dim,
-        hidden_dim=t_emb_dim,
-        output_dim=t_emb_dim,
-        act=act,
-        )
-    
+    self.t_embed = TimestepEmbedder(
+        t_emb_dim,
+        PositionalEncoding(self.t_emb_dim)
+    )
     
      
     # Encoding layers where the resolution decreases
-    self.start_conv = conv2d(nc,ngf*2,1, padding=0)
-    self.conv1 = DownConvBlock(ngf*2, ngf*2, t_emb_dim = t_emb_dim,downsample=downsample,act=act)
+    # self.start_conv = conv2d(nc,ngf*2,1, padding=0)
+    # self.conv1 = DownConvBlock(ngf*2, ngf*2, t_emb_dim = t_emb_dim,downsample=downsample,act=act)
     
-    self.conv2 = DownConvBlock(ngf*2, ngf*4,  t_emb_dim = t_emb_dim, downsample=downsample,act=act)
+    # self.conv2 = DownConvBlock(ngf*2, ngf*4,  t_emb_dim = t_emb_dim, downsample=downsample,act=act)
     
     
-    self.conv3 = DownConvBlock(ngf*4, ngf*8,  t_emb_dim = t_emb_dim, downsample=downsample,act=act)
+    # self.conv3 = DownConvBlock(ngf*4, ngf*8,  t_emb_dim = t_emb_dim, downsample=downsample,act=act)
 
     
-    self.conv4 = DownConvBlock(ngf*8, ngf*8, t_emb_dim = t_emb_dim, downsample=downsample,act=act)
+    # self.conv4 = DownConvBlock(ngf*8, ngf*8, t_emb_dim = t_emb_dim, downsample=downsample,act=act)
     
     
-    self.final_conv = conv2d(ngf*8 + 1, ngf*8, 3,padding=1, init_scale=0.)
-    self.end_linear = dense(ngf*8, 1)
+    # self.final_conv = conv2d(ngf*8 + 1, ngf*8, 3,padding=1, init_scale=0.)
+    # self.end_linear = dense(ngf*8, 1)
     
-    self.stddev_group = 4
-    self.stddev_feat = 1
-    
+    # self.stddev_group = 4
+    # self.stddev_feat = 1
         
-  def forward(self, x, t, x_t):
-    t_embed = self.act(self.t_embed(t))  
+  def forward(self, x, t, x_t, y):
+    t_embed = self.act(self.t_embed(t) + self.encode_text(y['text']))
     
-  
     input_x = torch.cat((x, x_t), dim = 1)
     
     h0 = self.start_conv(input_x)
@@ -170,17 +184,15 @@ class Discriminator_small(nn.Module):
 class Discriminator_large(nn.Module):
   """A time-dependent discriminator for large images (CelebA, LSUN)."""
 
-  def __init__(self, nc = 1, ngf = 32, t_emb_dim = 128, act=nn.LeakyReLU(0.2), downsample=True):
+  def __init__(self, nc = 1, ngf = 32, t_emb_dim = 512, act=nn.LeakyReLU(0.2), downsample=True):
     super().__init__()
     # Gaussian random feature embedding layer for time
     self.act = act
+    self.clip_version = 'ViT-B/32'
+    self.clip_model = self.load_and_freeze_clip(self.clip_version)
     
-    self.t_embed = TimestepEmbedding(
-            embedding_dim=t_emb_dim,
-            hidden_dim=t_emb_dim,
-            output_dim=t_emb_dim,
-            act=act,
-        )
+    self.position_encoder = PositionalEncoding(t_emb_dim)
+    self.t_embed = TimestepEmbedder(t_emb_dim, self.position_encoder)
       
     self.start_conv = conv2d(nc,ngf*2,1, padding=0)
     self.conv1 = DownConvBlock(ngf*2, ngf*4, t_emb_dim = t_emb_dim, downsample = downsample, act=act)
@@ -201,9 +213,38 @@ class Discriminator_large(nn.Module):
     self.stddev_group = 4
     self.stddev_feat = 1
     
+  def load_and_freeze_clip(self, clip_version):
+        clip_model, clip_preprocess = clip.load(clip_version, device='cpu',
+                                                jit=False)  # Must set jit=False for training
+        clip.model.convert_weights(
+            clip_model)  # Actually this line is unnecessary since clip by default already on float16
+
+        # Freeze CLIP weights
+        clip_model.eval()
+        for p in clip_model.parameters():
+            p.requires_grad = False
+
+        return clip_model
+  
+  def encode_text(self, raw_text):
+        # raw_text - list (batch_size length) of strings with input text prompts
+        device = next(self.parameters()).device
+        max_text_len = 20 # if self.dataset in ['humanml', 'kit'] else None  # Specific hardcoding for humanml dataset
+        if max_text_len is not None:
+            default_context_length = 77
+            context_length = max_text_len + 2 # start_token + 20 + end_token
+            assert context_length < default_context_length
+            texts = clip.tokenize(raw_text, context_length=context_length, truncate=True).to(device) # [bs, context_length] # if n_tokens > context_length -> will truncate
+            # print('texts', texts.shape)
+            zero_pad = torch.zeros([texts.shape[0], default_context_length-context_length], dtype=texts.dtype, device=texts.device)
+            texts = torch.cat([texts, zero_pad], dim=1)
+            # print('texts after pad', texts.shape, texts)
+        else:
+            texts = clip.tokenize(raw_text, truncate=True).to(device) # [bs, context_length] # if n_tokens > 77 -> will truncate
+        return self.clip_model.encode_text(texts).float()
         
-  def forward(self, x, t, x_t):
-    t_embed = self.act(self.t_embed(t))  
+  def forward(self, x, t, x_t, y):
+    t_embed = self.act(torch.cat((self.t_embed(t), self.encode_text(y['text']).unsqueeze(0))))  
     
     input_x = torch.cat((x, x_t), dim = 1)
     

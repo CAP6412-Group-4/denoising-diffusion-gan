@@ -95,8 +95,8 @@ class NCSNpp(nn.Module):
     self.timestep_embedder = TimestepEmbedder(self.z_emb_dim, self.position_encoder)
     self.cond_mask_prob = 0.1
 
-    self.res1 = layers.ResidualBlock(197, 200)
-    self.res2 = layers.ResidualBlock(200, 197)
+    # self.res1 = layers.ResidualBlock(197, 200)
+    self.res2 = layers.ResidualBlock(197, 197)
 
     transformer_encoder_layer = nn.TransformerEncoderLayer(
       d_model=self.z_emb_dim,
@@ -108,7 +108,7 @@ class NCSNpp(nn.Module):
 
     self.transformer_encoder = nn.TransformerEncoder(encoder_layer=transformer_encoder_layer, num_layers=8)
 
-    self.res3 = layers.ResidualBlock(196, 196)
+    # self.res3 = layers.ResidualBlock(196, 196)
 
     # modules: list[nn.Module] = []
     # # timestep/noise_level embedding; only for continuous training
@@ -398,11 +398,11 @@ class NCSNpp(nn.Module):
     # adding the timestep embed
     xseq = torch.cat((zemb, x), axis=0)  # [seqlen+1, bs, d]
     xseq = self.position_encoder(xseq)  # [seqlen+1, bs, d]
-    output = self.res1(xseq)
-    output = self.res2(output)
+    # output = self.res1(xseq)
+    output = self.res2(xseq)
     output = self.transformer_encoder(output)[1:]  # , src_key_padding_mask=~maskseq)  # [seqlen, bs, d]
-    output = self.res3(output)
-    output = self.act(output)
+    # output = self.res3(output)
+    # output = self.act(output)
     output = self.output_process(output)
     return output
 
