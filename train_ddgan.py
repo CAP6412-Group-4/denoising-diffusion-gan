@@ -615,19 +615,21 @@ if __name__ == '__main__':
     print(f"world size = {args.world_size}")
 
     if size > 1:
-        processes = []
-        for rank in range(size):
-            args.local_rank = rank
-            global_rank = rank + args.node_rank * args.num_process_per_node
-            global_size = args.num_proc_node * args.num_process_per_node
-            args.global_rank = global_rank
-            print('Node rank %d, local proc %d, global proc %d' % (args.node_rank, rank, global_rank))
-            p = Process(target=init_processes, args=(rank, global_size, train, args))
-            p.start()
-            processes.append(p)
+        # processes = []
+        # for rank in range(size):
+        # args.local_rank = rank
+        global_rank = args.local_rank + args.node_rank * args.num_process_per_node
+        global_size = args.num_proc_node * args.num_process_per_node
+        args.global_rank = global_rank
+        print('Node rank %d, local proc %d, global proc %d' % (args.node_rank, args.local_rank, global_rank))
+
+        init_processes(rank=int(os.environ['SLURM_PROCID']), size=global_size, args=args)
+            # p = Process(target=init_processes, args=(rank, global_size, train, args))
+            # p.start()
+            # processes.append(p)
             
-        for p in processes:
-            p.join()
+        # for p in processes:
+        #     p.join()
     else:
         print('starting in debug mode')
         
