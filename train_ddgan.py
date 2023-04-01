@@ -206,6 +206,8 @@ def train(rank, gpu, args):
     device = torch.device('cuda:{}'.format(gpu))
     
     batch_size = args.batch_size
+
+    print('Hello from the child process', flush=True)
     
     nz = args.nz #latent dimension
     
@@ -605,6 +607,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.world_size = args.num_proc_node * args.num_process_per_node
     size = args.num_process_per_node
+
+    print(f"world size = {args.world_size}")
 
     if size > 1:
         processes = []
