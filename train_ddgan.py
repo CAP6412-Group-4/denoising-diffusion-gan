@@ -207,7 +207,7 @@ def train(rank, gpu, args):
     
     batch_size = args.batch_size
 
-    print(f'Hello from the child process using gpu {gpu}, rank {rank}')
+    print(f'Hello from the child process using gpu {gpu}, rank {rank}', flush=True)
     
     nz = args.nz #latent dimension
     
@@ -486,7 +486,7 @@ def init_processes(rank, size, fn, args):
     # os.environ['MASTER_ADDR'] = args.master_address
     # os.environ['MASTER_PORT'] = '6020'
     torch.cuda.set_device(args.local_rank)
-    gpu = args.local_rank
+    gpu = args.node_rank % torch.cuda.device_count()
     dist.init_process_group(backend='nccl', init_method='env://', rank=rank, world_size=size)
     fn(rank, gpu, args)
     dist.barrier()
