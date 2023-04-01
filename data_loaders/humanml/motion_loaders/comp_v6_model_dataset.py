@@ -5,6 +5,7 @@ from torch.utils.data import Dataset, DataLoader
 from os.path import join as pjoin
 from tqdm import tqdm
 from utils import dist_util
+import test_ddgan as dg
 
 def build_models(opt):
     if opt.text_enc_mod == 'bigru':
@@ -145,16 +146,16 @@ class CompV6GeneratedDataset(Dataset):
 
 class CompMDMGeneratedDataset(Dataset):
 
-    def __init__(self, model, diffusion, dataloader, mm_num_samples, mm_num_repeats, max_motion_length, num_samples_limit, scale=1.):
+    def __init__(self, model, dataloader, mm_num_samples, mm_num_repeats, max_motion_length, num_samples_limit, args, scale=1.):
         self.dataloader = dataloader
         self.dataset = dataloader.dataset
         assert mm_num_samples < len(dataloader.dataset)
         use_ddim = False  # FIXME - hardcoded
         clip_denoised = False  # FIXME - hardcoded
         self.max_motion_length = max_motion_length
-        sample_fn = (
-            diffusion.p_sample_loop if not use_ddim else diffusion.ddim_sample_loop
-        )
+        # sample_fn = (
+        #     diffusion.p_sample_loop if not use_ddim else diffusion.ddim_sample_loop
+        # )
 
         real_num_batches = len(dataloader)
         if num_samples_limit is not None:
@@ -190,21 +191,28 @@ class CompMDMGeneratedDataset(Dataset):
                 is_mm = i in mm_idxs
                 repeat_times = mm_num_repeats if is_mm else 1
                 mm_motions = []
+                device = dist_util.dev()
                 for t in range(repeat_times):
+                    T = dg.get_time_schedule(args, device)
+    
+                    pos_coeff = dg.Posterior_Coefficients(args, device)
+                    x_t_1 = torch.randn(args.batch_size, args.num_channels,1, args.image_size).to(device)
+                    args.text_prompt = model_kwargs['y']['text']
+                    sample = dg.sample_from_model(pos_coeff, model, args.num_timesteps, x_t_1, T,  args)
 
-                    sample = sample_fn(
-                        model,
-                        motion.shape,
-                        clip_denoised=clip_denoised,
-                        model_kwargs=model_kwargs,
-                        skip_timesteps=0,  # 0 is the default value - i.e. don't skip any step
-                        init_image=None,
-                        progress=False,
-                        dump_steps=None,
-                        noise=None,
-                        const_noise=False,
-                        # when experimenting guidance_scale we want to nutrileze the effect of noise on generation
-                    )
+                    # sample = sample_fn(
+                    #     model,
+                    #     motion.shape,
+                    #     clip_denoised=clip_denoised,
+                    #     model_kwargs=model_kwargs,
+                    #     skip_timesteps=0,  # 0 is the default value - i.e. don't skip any step
+                    #     init_image=None,
+                    #     progress=False,
+                    #     dump_steps=None,
+                    #     noise=None,
+                    #     const_noise=False,
+                    #     # when experimenting guidance_scale we want to nutrileze the effect of noise on generation
+                    # )
 
                     if t == 0:
                         sub_dicts = [{'motion': sample[bs_i].squeeze().permute(1,0).cpu().numpy(),

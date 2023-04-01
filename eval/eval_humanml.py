@@ -11,9 +11,7 @@ from utils.model_util import create_model_and_diffusion, load_model_wo_clip
 
 from score_sde.models.ncsnpp_generator_adagn import NCSNpp
 
-
-
-# from diffusion import logger
+from utils import logger
 from utils import dist_util
 from data_loaders.get_data import get_dataset_loader
 from model.cfg_sampler import ClassifierFreeSampleModel
@@ -236,13 +234,13 @@ if __name__ == '__main__':
     args.batch_size = 32 # This must be 32! Don't change it! otherwise it will cause a bug in R precision calc!
     name = os.path.basename(os.path.dirname(args.model_path))
     niter = os.path.basename(args.model_path).replace('model', '').replace('.pt', '')
-    # log_file = os.path.join(os.path.dirname(args.model_path), 'eval_humanml_{}_{}'.format(name, niter))
-    # if args.guidance_param != 1.:
-    #     log_file += f'_gscale{args.guidance_param}'
-    # log_file += f'_{args.eval_mode}'
-    # log_file += '.log'
+    log_file = os.path.join(os.path.dirname(args.model_path), 'eval_humanml_{}_{}'.format(name, niter))
+    if args.guidance_param != 1.:
+        log_file += f'_gscale{args.guidance_param}'
+    log_file += f'_{args.eval_mode}'
+    log_file += '.log'
 
-    # print(f'Will save to log file [{log_file}]')
+    print(f'Will save to log file [{log_file}]')
 
     print(f'Eval mode [{args.eval_mode}]')
     if args.eval_mode == 'debug':
@@ -274,20 +272,20 @@ if __name__ == '__main__':
 
 
     dist_util.setup_dist(args.device)
-    print()
+    logger.configure()
 
-    print("creating data loader...")
+    logger.log("creating data loader...")
     split = 'test'
     gt_loader = get_dataset_loader(name=args.dataset, batch_size=args.batch_size, num_frames=None, split=split, hml_mode='gt')
     gen_loader = get_dataset_loader(name=args.dataset, batch_size=args.batch_size, num_frames=None, split=split, hml_mode='eval')
     num_actions = gen_loader.dataset.num_actions
 
-    print("Creating model and diffusion...")
-    model, diffusion = create_model_and_diffusion(args, gen_loader)
+    # print("Creating model and diffusion...")
+    # model, diffusion = create_model_and_diffusion(args, gen_loader)
 
-    print(f"Loading checkpoints from [{args.model_path}]...")
-    state_dict = torch.load(args.model_path, map_location='cpu')
-    load_model_wo_clip(model, state_dict)
+    # print(f"Loading checkpoints from [{args.model_path}]...")
+    # state_dict = torch.load(args.model_path, map_location='cpu')
+    # load_model_wo_clip(model, state_dict)
 
     # if args.guidance_param != 1:
     #     model = ClassifierFreeSampleModel(model)   # wrapping model with the classifier-free sampler
@@ -309,7 +307,7 @@ if __name__ == '__main__':
         ## HumanML3D Dataset##
         ################
         'vald': lambda: get_mdm_loader(
-            netG, diffusion, args.batch_size,
+            netG, args,
             gen_loader, mm_num_samples, mm_num_repeats, gt_loader.dataset.opt.max_motion_length, num_samples_limit, args.guidance_param
         )
     }
