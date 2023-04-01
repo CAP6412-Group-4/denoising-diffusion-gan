@@ -606,6 +606,10 @@ if __name__ == '__main__':
    
     args = parser.parse_args()
     args.world_size = args.num_proc_node * args.num_process_per_node
+    
+    if 'SLURM_PROCID' in os.environ: # for slurm scheduler
+        args.rank = int(os.environ['SLURM_PROCID'])
+
     size = args.num_process_per_node
 
     print(f"world size = {args.world_size}")
