@@ -49,9 +49,13 @@ def get_dataset_loader(name, batch_size, num_frames, rank, world_size, split='tr
                                                             rank=rank)
 
     loader = DataLoader(
-        dataset, batch_size=batch_size,
-        num_workers=4, drop_last=True, collate_fn=collate,
-        sampler = train_sampler
+        dataset, 
+        batch_size=batch_size,
+        num_workers=4, 
+        drop_last=True,
+        collate_fn=collate,
+        sampler = train_sampler,
+        pin_memory=True
     )
 
     return loader,train_sampler, dataset
