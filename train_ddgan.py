@@ -485,7 +485,7 @@ def init_processes(rank, size, fn, args):
     """ Initialize the distributed environment. """
     # os.environ['MASTER_ADDR'] = args.master_address
     # os.environ['MASTER_PORT'] = '6020'
-    torch.cuda.set_device(args.local_rank)
+    torch.cuda.set_device(args.node_rank % torch.cuda.device_count())
     gpu = args.node_rank % torch.cuda.device_count()
     dist.init_process_group(backend='nccl', init_method='env://', rank=rank, world_size=size)
     fn(rank, gpu, args)
