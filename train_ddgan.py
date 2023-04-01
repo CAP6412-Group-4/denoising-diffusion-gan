@@ -7,6 +7,7 @@
 
 
 import argparse
+import builtins
 import torch
 import numpy as np
 
@@ -285,7 +286,6 @@ def train(rank, gpu, args):
     
     optimizerG = optim.Adam(netG.parameters(), lr=args.lr_g, betas = (args.beta1, args.beta2))
 
-    print(optimizerG)
     
     if args.use_ema:
         optimizerG = EMA(optimizerG, ema_decay=args.ema_decay)
@@ -623,10 +623,16 @@ if __name__ == '__main__':
         args.global_rank = global_rank
         print('Node rank %d, local proc %d, global proc %d' % (args.node_rank, args.local_rank, global_rank))
 
-        init_processes(rank=int(os.environ['SLURM_PROCID']), size=global_size, fn=train, args=args)
+        init_processes(rank=args.node_rank, size=global_size, fn=train, args=args)
             # p = Process(target=init_processes, args=(rank, global_size, train, args))
             # p.start()
             # processes.append(p)
+
+        # suppress printing if not on master gpu
+        if args.node_rank!=0:
+            def print_pass(*args):
+                pass
+            builtins.print = print_pass
             
         # for p in processes:
         #     p.join()
