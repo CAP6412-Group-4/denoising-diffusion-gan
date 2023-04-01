@@ -22,6 +22,14 @@ dist/
 # JetBrains IDE
 .idea/
 
+#dataset
+dataset/
+data/
+utils/
+
+#saved models
+saved_info/
+
 # Unit test reports
 TEST*.xml
 
