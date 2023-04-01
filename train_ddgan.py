@@ -207,7 +207,7 @@ def train(rank, gpu, args):
     
     batch_size = args.batch_size
 
-    print('Hello from the child process', flush=True)
+    print(f'Hello from the child process using gpu {gpu}, rank {rank}')
     
     nz = args.nz #latent dimension
     
