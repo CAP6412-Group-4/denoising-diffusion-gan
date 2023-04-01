@@ -260,15 +260,15 @@ def add_edit_options(parser):
 
 def add_evaluation_options(parser):
     group = parser.add_argument_group('eval')
-    group.add_argument("--model_path", required=True, type=str,
-                       help="Path to model####.pt file to be sampled.")
+    # group.add_argument("--model_path", required=True, type=str,
+    #                    help="Path to model####.pt file to be sampled.")
     group.add_argument("--eval_mode", default='wo_mm', choices=['wo_mm', 'mm_short', 'debug', 'full'], type=str,
                        help="wo_mm (t2m only) - 20 repetitions without multi-modality metric; "
                             "mm_short (t2m only) - 5 repetitions with multi-modality metric; "
                             "debug - short run, less accurate results."
                             "full (a2m only) - 20 repetitions.")
-    group.add_argument("--guidance_param", default=2.5, type=float,
-                       help="For classifier-free sampling - specifies the s parameter, as defined in the paper.")
+    # group.add_argument("--guidance_param", default=2.5, type=float,
+    #                    help="For classifier-free sampling - specifies the s parameter, as defined in the paper.")
 
 
 def get_cond_mode(args):
@@ -322,4 +322,6 @@ def evaluation_parser():
     # args specified by the user: (all other will be loaded from the model)
     add_base_options(parser)
     add_evaluation_options(parser)
+    add_generate_options(parser)
+    add_sampling_options(parser)
     return parse_and_load_from_model(parser)

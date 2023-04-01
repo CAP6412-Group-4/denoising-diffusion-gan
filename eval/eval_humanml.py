@@ -1,3 +1,7 @@
+import sys
+from pathlib import Path
+sys.path.append(str(Path().parent))
+
 from utils.parser_util import evaluation_parser
 from utils.fixseed import fixseed
 from datetime import datetime
@@ -7,7 +11,7 @@ from data_loaders.humanml.networks.evaluator_wrapper import EvaluatorMDMWrapper
 from collections import OrderedDict
 from data_loaders.humanml.scripts.motion_process import *
 from data_loaders.humanml.utils.utils import *
-from utils.model_util import create_model_and_diffusion, load_model_wo_clip
+# from utils.model_util import create_model_and_diffusion, load_model_wo_clip
 
 from score_sde.models.ncsnpp_generator_adagn import NCSNpp
 
@@ -40,15 +44,20 @@ def evaluate_matching_score(eval_wrapper, motion_loaders, file):
                     motions=motions,
                     m_lens=m_lens
                 )
+                if idx == 4:
+                    print('reaches 86 idx')
+
                 dist_mat = euclidean_distance_matrix(text_embeddings.cpu().numpy(),
                                                      motion_embeddings.cpu().numpy())
                 matching_score_sum += dist_mat.trace()
+                print(f'id: {idx}  matching_score_sum:{matching_score_sum}')
 
                 argsmax = np.argsort(dist_mat, axis=1)
                 top_k_mat = calculate_top_k(argsmax, top_k=3)
                 top_k_count += top_k_mat.sum(axis=0)
 
                 all_size += text_embeddings.shape[0]
+                print(f'id: {idx}  all_size:{all_size}')
 
                 all_motion_embeddings.append(motion_embeddings.cpu().numpy())
 
@@ -234,7 +243,8 @@ if __name__ == '__main__':
     args.batch_size = 32 # This must be 32! Don't change it! otherwise it will cause a bug in R precision calc!
     name = os.path.basename(os.path.dirname(args.model_path))
     niter = os.path.basename(args.model_path).replace('model', '').replace('.pt', '')
-    log_file = os.path.join(os.path.dirname(args.model_path), 'eval_humanml_{}_{}'.format(name, niter))
+    # log_file = os.path.join(os.path.dirname(args.model_path), 'eval_humanml_{}_{}'.format(name, niter))
+    log_file = 'eval_humanml_{}_{}'.format(name, niter)
     if args.guidance_param != 1.:
         log_file += f'_gscale{args.guidance_param}'
     log_file += f'_{args.eval_mode}'
@@ -276,8 +286,8 @@ if __name__ == '__main__':
 
     logger.log("creating data loader...")
     split = 'test'
-    gt_loader = get_dataset_loader(name=args.dataset, batch_size=args.batch_size, num_frames=None, split=split, hml_mode='gt')
-    gen_loader = get_dataset_loader(name=args.dataset, batch_size=args.batch_size, num_frames=None, split=split, hml_mode='eval')
+    gt_loader, _, _ = get_dataset_loader(name=args.dataset, batch_size=args.batch_size, num_frames=None, rank=args.node_rank, world_size=args.num_process_per_node, split=split, hml_mode='gt')
+    gen_loader, _, _ = get_dataset_loader(name=args.dataset, batch_size=args.batch_size, num_frames=None, rank=args.node_rank, world_size=args.num_process_per_node, split=split, hml_mode='eval')
     num_actions = gen_loader.dataset.num_actions
 
     # print("Creating model and diffusion...")
@@ -312,5 +322,5 @@ if __name__ == '__main__':
         )
     }
 
-    eval_wrapper = EvaluatorMDMWrapper(args.dataset, dist_util.dev())
+    eval_wrapper = EvaluatorMDMWrapper(args.dataset, device)
     evaluation(eval_wrapper, gt_loader, eval_motion_loaders, log_file, replication_times, diversity_times, mm_num_times, run_mm=run_mm)

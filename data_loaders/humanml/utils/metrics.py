@@ -14,8 +14,11 @@ def euclidean_distance_matrix(matrix1, matrix2):
     """
     assert matrix1.shape[1] == matrix2.shape[1]
     d1 = -2 * np.dot(matrix1, matrix2.T)    # shape (num_test, num_train)
+    d1[np.isnan(d1)] = 0
     d2 = np.sum(np.square(matrix1), axis=1, keepdims=True)    # shape (num_test, 1)
     d3 = np.sum(np.square(matrix2), axis=1)     # shape (num_train, )
+    # replace all the nans in d3 with 0s
+    d3[np.isnan(d3)] = 0
     dists = np.sqrt(d1 + d2 + d3)  # broadcasting
     return dists
 
