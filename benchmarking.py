@@ -5,4 +5,6 @@ args = setup_params()
 
 t = timeit.Timer(lambda: generate_sample(*args))
 iter = 3
-print(t.timeit(iter)/iter)
+
+avg = t.timeit(iter)/iter
+print(f'Average time per sample: {avg}')
