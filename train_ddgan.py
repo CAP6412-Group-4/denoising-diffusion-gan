@@ -627,13 +627,7 @@ if __name__ == '__main__':
             # p = Process(target=init_processes, args=(rank, global_size, train, args))
             # p.start()
             # processes.append(p)
-
-        # suppress printing if not on master gpu
-        if args.node_rank!=0:
-            def print_pass(*args):
-                pass
-            builtins.print = print_pass
-            
+                    
         # for p in processes:
         #     p.join()
     else:
