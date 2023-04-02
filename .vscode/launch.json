@@ -12,13 +12,13 @@
     //   "program": "train_ddgan.py",
     //   "args": ["--dataset", "humanml", "--num_channels", "263"],
     //for generating
-      // "args": ["--dataset", "humanml","--batch_size", "1",
-      //         "--num_samples", "1", "--output_dir", "./save", "--exp", "experiment", "--epoch_id", "150",
-      //         "--num_process_per_node", "1", "--node_rank", "0", "--num_timesteps", "4","--text_prompt","'A person jumping'"],
+      "args": ["--dataset", "humanml","--batch_size", "1",
+              "--num_samples", "1", "--output_dir", "./save", "--exp", "experiment", "--epoch_id", "250",
+              "--num_process_per_node", "1", "--node_rank", "0", "--num_timesteps", "4","--text_prompt","'A person jumping'"],
     //for evaluation
-    "args": ["--dataset", "humanml","--batch_size", "32", "--model_path", "saved_info/dd-gan/humanml/experiment/netG_100", "--eval_mode", "debug",
-    "--num_samples", "1", "--output_dir", "./save", "--exp", "experiment", "--epoch_id", "100",
-    "--num_process_per_node", "1", "--node_rank", "0", "--num_timesteps", "4","--text_prompt","'A person jumping'"],
+    // "args": ["--dataset", "humanml","--batch_size", "16", "--model_path", "saved_info/dd-gan/humanml/experiment/netG_100", "--eval_mode", "debug",
+    // "--num_samples", "1", "--output_dir", "./save", "--exp", "experiment", "--epoch_id", "100",
+    // "--num_process_per_node", "1", "--node_rank", "0", "--num_timesteps", "4","--text_prompt","'A person jumping'"],
       "console": "integratedTerminal",
       "justMyCode": true
     }

@@ -49,6 +49,7 @@ dataset/
 utils/HumanML3D/
 saved_info/
 t2m/
+save/
 
 # Virtual environment
 venv

@@ -45,7 +45,7 @@ def evaluate_matching_score(eval_wrapper, motion_loaders, file):
                     m_lens=m_lens
                 )
                 if idx == 4:
-                    print('reaches 86 idx')
+                    print('reaches 4 idx')
 
                 dist_mat = euclidean_distance_matrix(text_embeddings.cpu().numpy(),
                                                      motion_embeddings.cpu().numpy())
