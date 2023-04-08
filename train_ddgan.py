@@ -29,6 +29,7 @@ from data_loaders.get_data import get_dataset_loader
 from torch.multiprocessing import Process
 import torch.distributed as dist
 import shutil
+from score_sde.models.mdm import MDM
 import train_utils.train_helper as th
 
 class Args(Tap):
@@ -372,6 +373,11 @@ def train(rank: int, gpu: int, args: Args):
     
     netG = NCSNpp(args).to(device)
 
+    # print(netG)
+
+    if args.use_pretrained:
+        netG.load_state_dict(torch.load("./save/humanml_trans_enc_512/model000475000.pt", map_location=device), strict=False)
+
     # netG = NCSNpp(args).to(device)
 
     if args.use_small_d:    
@@ -708,6 +714,7 @@ if __name__ == '__main__':
     parser.add_argument('--use_small_d', action='store_true', default=False,
                         help='use small discriminator')
 
+    parser.add_argument('--use_pretrained', action='store_true', default=False)
    
     args: Args = parser.parse_args()
     args.world_size = args.num_proc_node * args.num_process_per_node
@@ -738,6 +745,38 @@ if __name__ == '__main__':
     else:
         print('starting in debug mode')
         
+        # mdm = MDM(
+        # modeltype='',
+        # njoints=263,
+        # nfeats=1,
+        # num_actions=1,
+        # translation=True,
+        # pose_rep='rot6d',
+        # glob=True,
+        # glob_rot=True,
+        # latent_dim=512,
+        # ff_size=1024,
+        # num_layers=8,
+        # num_heads=4,
+        # dropout=0.1,
+        # activation="gelu",
+        # data_rep="hml_vec",
+        # dataset="humanml",
+        # clip_version='ViT-B/32',
+        # cond_mode="text",
+        # )
+
+        # print(torch.load("./save/humanml_trans_enc_512/model000475000.pt", map_location=torch.device("cuda")).keys())
+
+        # device = torch.device("cuda")
+        
+        # # mdm.to(device=device)
+
+        # # mdm.load_state_dict(torch.load("./save/humanml_trans_enc_512/model000475000.pt", map_location=device), strict=True)
+
+        # print("")
+
         init_processes(0, size, train, args)
    
                 
+# %%

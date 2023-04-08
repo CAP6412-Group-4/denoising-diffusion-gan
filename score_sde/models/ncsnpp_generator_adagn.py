@@ -94,10 +94,10 @@ class NCSNpp(nn.Module):
     self.input_process = InputProcess(data_rep='rot6d', input_feats=263, latent_dim=self.z_emb_dim)
     self.output_process = OutputProcess(data_rep='rot6d', input_feats=263, latent_dim=self.z_emb_dim, njoints=263, nfeats=1)
     self.position_encoder = PositionalEncoding(self.z_emb_dim)
-    self.timestep_embedder = TimestepEmbedder(self.z_emb_dim, self.position_encoder)
+    self.embed_timestep = TimestepEmbedder(self.z_emb_dim, self.position_encoder)
     self.cond_mask_prob = 0.1
 
-    transformer_encoder_layer = nn.TransformerEncoderLayer(
+    seqTransEncoderLayer = nn.TransformerEncoderLayer(
       d_model=self.z_emb_dim,
       nhead=4,
       dim_feedforward=1024,
@@ -105,7 +105,7 @@ class NCSNpp(nn.Module):
       activation="gelu",
     )
 
-    self.transformer_encoder = nn.TransformerEncoder(encoder_layer=transformer_encoder_layer, num_layers=8)
+    self.seqTransEncoder = nn.TransformerEncoder(encoder_layer=seqTransEncoderLayer, num_layers=8)
 
     # modules: list[nn.Module] = []
     # # timestep/noise_level embedding; only for continuous training
@@ -360,7 +360,7 @@ class NCSNpp(nn.Module):
     zemb = self.z_transform(z).unsqueeze(0)
     # print(f"zemb={zemb.shape}")
 
-    zemb += self.timestep_embedder(t)
+    zemb += self.embed_timestep(t)
    
     # if self.embedding_type == 'fourier':
     #   # Gaussian Fourier features embeddings.
@@ -392,7 +392,7 @@ class NCSNpp(nn.Module):
     # adding the timestep embed
     xseq = torch.cat((zemb, x), axis=0)  # [seqlen+1, bs, d]
     xseq = self.position_encoder(xseq)  # [seqlen+1, bs, d]
-    output = self.transformer_encoder(xseq)[1:]  # , src_key_padding_mask=~maskseq)  # [seqlen, bs, d]
+    output = self.seqTransEncoder(xseq)[1:]  # , src_key_padding_mask=~maskseq)  # [seqlen, bs, d]
 
     output = self.output_process(output)
     return output
