@@ -279,7 +279,7 @@ def train(rank, gpu, args):
                                act=nn.LeakyReLU(0.2), downsample=False if mdm else True).to(device)
     else:
         netD = Discriminator_large(nc = 2*args.num_channels, ngf = args.ngf, 
-                                   t_emb_dim = args.t_emb_dim,
+                                   t_emb_dim = 512,
                                    act=nn.LeakyReLU(0.2), downsample=False if mdm else True).to(device)
     
     broadcast_params(netG.parameters())
@@ -364,7 +364,7 @@ def train(rank, gpu, args):
             
     
             # train with real
-            D_real = netD(x_t, t, x_tp1.detach()).view(-1)
+            D_real = netD(x_t, t, x_tp1.detach(), y).view(-1)
             
             errD_real = F.softplus(-D_real)
             errD_real = errD_real.mean()
@@ -404,7 +404,7 @@ def train(rank, gpu, args):
             x_0_predict = netG(x_tp1.detach(), t, y, latent_z)
             x_pos_sample, _ = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             
-            output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
+            output = netD(x_pos_sample, t, x_tp1.detach(), y).view(-1)
             
             errD_fake = F.softplus(output)
             errD_fake = errD_fake.mean()
@@ -434,7 +434,7 @@ def train(rank, gpu, args):
             x_0_predict = netG(x_tp1.detach(), t, y, latent_z)
             x_pos_sample, post_params = sample_posterior(pos_coeff, x_0_predict, x_tp1, t)
             
-            output = netD(x_pos_sample, t, x_tp1.detach()).view(-1)
+            output = netD(x_pos_sample, t, x_tp1.detach(), y).view(-1)
 
             train_helper = th.TrainingHelper(th.LossType.MSE, data_rep='hml_vec')
             loss = train_helper.training_losses(x_0_predict, post_params['mean'], real_data, noise = post_params['noise'], dataset=args.dataset)
