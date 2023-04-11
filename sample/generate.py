@@ -109,49 +109,52 @@ def setup_params():
 
 
 def generate_sample(args, netG, device, data_rep, dataset, model_kwargs, all_motions, all_lengths, all_text, n_frames):
-    T = dg.get_time_schedule(args, device)
-    
-    pos_coeff = dg.Posterior_Coefficients(args, device)
+    for rep_i in range(args.num_repetitions):
+        print(f'### Sampling [repetitions #{rep_i}]')
         
-    iters_needed = 50000 // args.batch_size
-    
-    save_dir = "./generated_samples/{}".format(args.dataset)
-    
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+        T = dg.get_time_schedule(args, device)
+        
+        pos_coeff = dg.Posterior_Coefficients(args, device)
+            
+        iters_needed = 50000 // args.batch_size
+        
+        save_dir = "./generated_samples/{}".format(args.dataset)
+        
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
 
-    x_t_1 = torch.randn(args.batch_size, args.num_channels,1, args.image_size).to(device)
-    sample = dg.sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1, T,  args)
-
-
-    # sample = torch.load('./saved_tensor/sample.pt')
-
-    # Recover XYZ *positions* from HumanML3D vector representation
-    if data_rep == 'hml_vec':
-        n_joints = 22 if sample.shape[1] == 263 else 21
-        sample = dataset.t2m_dataset.inv_transform(sample.cpu().permute(0, 2, 3, 1)).float()
-        sample = recover_from_ric(sample, n_joints)
-        sample = sample.view(-1, *sample.shape[2:]).permute(0, 2, 3, 1)
+        x_t_1 = torch.randn(args.batch_size, args.num_channels,1, args.image_size).to(device)
+        sample = dg.sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1, T,  args)
 
 
-    rot2xyz_pose_rep = 'xyz' if data_rep in ['xyz', 'hml_vec'] else data_rep
-    rot2xyz_mask = None if rot2xyz_pose_rep == 'xyz' else model_kwargs['y']['mask'].reshape(args.batch_size, n_frames).bool()
-    rot2xyz = Rotation2xyz(device='cpu', dataset=args.dataset)
-    sample = rot2xyz(x=sample, mask=rot2xyz_mask, pose_rep=rot2xyz_pose_rep, glob=True, translation=True,
-                            jointstype='smpl', vertstrans=True, betas=None, beta=0, glob_rot=None,
-                            get_rotations_back=False)
+        # sample = torch.load('./saved_tensor/sample.pt')
+
+        # Recover XYZ *positions* from HumanML3D vector representation
+        if data_rep == 'hml_vec':
+            n_joints = 22 if sample.shape[1] == 263 else 21
+            sample = dataset.t2m_dataset.inv_transform(sample.cpu().permute(0, 2, 3, 1)).float()
+            sample = recover_from_ric(sample, n_joints)
+            sample = sample.view(-1, *sample.shape[2:]).permute(0, 2, 3, 1)
 
 
-    if args.unconstrained:
-        all_text += ['unconstrained'] * args.num_samples
-    else:
-        text_key = 'text' if 'text' in model_kwargs['y'] else 'action_text'
-        all_text += model_kwargs['y'][text_key]
+        rot2xyz_pose_rep = 'xyz' if data_rep in ['xyz', 'hml_vec'] else data_rep
+        rot2xyz_mask = None if rot2xyz_pose_rep == 'xyz' else model_kwargs['y']['mask'].reshape(args.batch_size, n_frames).bool()
+        rot2xyz = Rotation2xyz(device='cpu', dataset=args.dataset)
+        sample = rot2xyz(x=sample, mask=rot2xyz_mask, pose_rep=rot2xyz_pose_rep, glob=True, translation=True,
+                                jointstype='smpl', vertstrans=True, betas=None, beta=0, glob_rot=None,
+                                get_rotations_back=False)
 
-    all_motions.append(sample.cpu().numpy())
-    all_lengths.append(model_kwargs['y']['lengths'].cpu().numpy())
 
-    print(f"created {len(all_motions) * args.batch_size} samples")
+        if args.unconstrained:
+            all_text += ['unconstrained'] * args.num_samples
+        else:
+            text_key = 'text' if 'text' in model_kwargs['y'] else 'action_text'
+            all_text += model_kwargs['y'][text_key]
+
+        all_motions.append(sample.cpu().numpy())
+        all_lengths.append(model_kwargs['y']['lengths'].cpu().numpy())
+
+        print(f"created {len(all_motions) * args.batch_size} samples")
 
 # args: dataset, batch_size, num_samples, output_dir, model_path
 def main():
@@ -234,48 +237,51 @@ def main():
                             arg, one_action, one_action_text in zip(collate_args, action, action_text)]
         _, model_kwargs = collate(collate_args)
 
-    T = dg.get_time_schedule(args, device)
-    
-    pos_coeff = dg.Posterior_Coefficients(args, device)
+    for rep_i in range(args.num_repetitions):
+        print(f'### Sampling [repetitions #{rep_i}]')
+
+        T = dg.get_time_schedule(args, device)
         
-    iters_needed = 50000 // args.batch_size
-    
-    save_dir = "./generated_samples/{}".format(args.dataset)
-    
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+        pos_coeff = dg.Posterior_Coefficients(args, device)
+            
+        iters_needed = 50000 // args.batch_size
+        
+        save_dir = "./generated_samples/{}".format(args.dataset)
+        
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
 
-    x_t_1 = torch.randn(args.batch_size, args.num_channels,1, args.image_size).to(device)
-    sample = dg.sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1, T,  args)
+        x_t_1 = torch.randn(args.batch_size, args.num_channels,1, args.image_size).to(device)
+        sample = dg.sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1, T,  args)
 
-    # sample = torch.load('./saved_tensor/sample.pt')
+        # sample = torch.load('./saved_tensor/sample.pt')
 
-    # Recover XYZ *positions* from HumanML3D vector representation
-    if data_rep == 'hml_vec':
-        n_joints = 22 if sample.shape[1] == 263 else 21
-        sample = dataset.t2m_dataset.inv_transform(sample.cpu().permute(0, 2, 3, 1)).float()
-        sample = recover_from_ric(sample, n_joints)
-        sample = sample.view(-1, *sample.shape[2:]).permute(0, 2, 3, 1)
-
-
-    rot2xyz_pose_rep = 'xyz' if data_rep in ['xyz', 'hml_vec'] else data_rep
-    rot2xyz_mask = None if rot2xyz_pose_rep == 'xyz' else model_kwargs['y']['mask'].reshape(args.batch_size, n_frames).bool()
-    rot2xyz = Rotation2xyz(device='cpu', dataset=args.dataset)
-    sample = rot2xyz(x=sample, mask=rot2xyz_mask, pose_rep=rot2xyz_pose_rep, glob=True, translation=True,
-                            jointstype='smpl', vertstrans=True, betas=None, beta=0, glob_rot=None,
-                            get_rotations_back=False)
+        # Recover XYZ *positions* from HumanML3D vector representation
+        if data_rep == 'hml_vec':
+            n_joints = 22 if sample.shape[1] == 263 else 21
+            sample = dataset.t2m_dataset.inv_transform(sample.cpu().permute(0, 2, 3, 1)).float()
+            sample = recover_from_ric(sample, n_joints)
+            sample = sample.view(-1, *sample.shape[2:]).permute(0, 2, 3, 1)
 
 
-    if args.unconstrained:
-        all_text += ['unconstrained'] * args.num_samples
-    else:
-        text_key = 'text' if 'text' in model_kwargs['y'] else 'action_text'
-        all_text += model_kwargs['y'][text_key]
+        rot2xyz_pose_rep = 'xyz' if data_rep in ['xyz', 'hml_vec'] else data_rep
+        rot2xyz_mask = None if rot2xyz_pose_rep == 'xyz' else model_kwargs['y']['mask'].reshape(args.batch_size, n_frames).bool()
+        rot2xyz = Rotation2xyz(device='cpu', dataset=args.dataset)
+        sample = rot2xyz(x=sample, mask=rot2xyz_mask, pose_rep=rot2xyz_pose_rep, glob=True, translation=True,
+                                jointstype='smpl', vertstrans=True, betas=None, beta=0, glob_rot=None,
+                                get_rotations_back=False)
 
-    all_motions.append(sample.cpu().numpy())
-    all_lengths.append(model_kwargs['y']['lengths'].cpu().numpy())
 
-    print(f"created {len(all_motions) * args.batch_size} samples")
+        if args.unconstrained:
+            all_text += ['unconstrained'] * args.num_samples
+        else:
+            text_key = 'text' if 'text' in model_kwargs['y'] else 'action_text'
+            all_text += model_kwargs['y'][text_key]
+
+        all_motions.append(sample.cpu().numpy())
+        all_lengths.append(model_kwargs['y']['lengths'].cpu().numpy())
+
+        print(f"created {len(all_motions) * args.batch_size} samples")
 
 
     all_motions = np.concatenate(all_motions, axis=0)

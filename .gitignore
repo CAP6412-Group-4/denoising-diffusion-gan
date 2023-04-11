@@ -50,6 +50,7 @@ utils/HumanML3D/
 saved_info/
 t2m/
 save/
+kit/
 
 # Virtual environment
 venv

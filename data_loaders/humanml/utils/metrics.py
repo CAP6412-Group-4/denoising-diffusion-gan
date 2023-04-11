@@ -68,8 +68,8 @@ def calculate_activation_statistics(activations):
     -- mu: dim_feat
     -- sigma: dim_feat x dim_feat
     """
-    mu = np.mean(activations, axis=0)
-    cov = np.cov(activations, rowvar=False)
+    mu = np.mean(activations, axis=0) if not np.isnan(np.mean(activations, axis=0)).any() else np.zeros(activations.shape[1])
+    cov = np.cov(activations, rowvar=False) if not np.isnan(np.cov(activations, rowvar=False)).any() else np.zeros((activations.shape[1],activations.shape[1]))
     return mu, cov
 
 
@@ -78,9 +78,14 @@ def calculate_diversity(activation, diversity_times):
     assert activation.shape[0] > diversity_times
     num_samples = activation.shape[0]
 
+
     first_indices = np.random.choice(num_samples, diversity_times, replace=False)
     second_indices = np.random.choice(num_samples, diversity_times, replace=False)
-    dist = linalg.norm(activation[first_indices] - activation[second_indices], axis=1)
+    act_1idx = activation[first_indices].astype(np.float64)
+    act_1idx[np.isnan(act_1idx)] = 0
+    act_2idx = activation[second_indices].astype(np.float64)
+    act_2idx[np.isnan(act_2idx)] = 0
+    dist = linalg.norm(act_1idx - act_2idx, axis=1)
     return dist.mean()
 
 
