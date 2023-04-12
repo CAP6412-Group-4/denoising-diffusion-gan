@@ -68,8 +68,9 @@ def calculate_activation_statistics(activations):
     -- mu: dim_feat
     -- sigma: dim_feat x dim_feat
     """
-    mu = np.mean(activations, axis=0) if not np.isnan(np.mean(activations, axis=0)).any() else np.zeros(activations.shape[1])
-    cov = np.cov(activations, rowvar=False) if not np.isnan(np.cov(activations, rowvar=False)).any() else np.zeros((activations.shape[1],activations.shape[1]))
+    activations = np.nan_to_num(activations)
+    mu = np.mean(activations, axis=0) #if not np.isnan(np.mean(activations, axis=0)).any() else np.zeros(activations.shape[1])
+    cov = np.cov(activations, rowvar=False) #if not np.isnan(np.cov(activations, rowvar=False)).any() else np.zeros((activations.shape[1],activations.shape[1]))
     return mu, cov
 
 
@@ -96,6 +97,13 @@ def calculate_multimodality(activation, multimodality_times):
 
     first_dices = np.random.choice(num_per_sent, multimodality_times, replace=False)
     second_dices = np.random.choice(num_per_sent, multimodality_times, replace=False)
+
+    # act_1idx = activation[:, first_dices]
+    # act_1idx[np.isnan(act_1idx)] = 0
+    # act_2idx = activation[:, second_dices]
+    # act_2idx[np.isnan(act_2idx)] = 0
+
+
     dist = linalg.norm(activation[:, first_dices] - activation[:, second_dices], axis=2)
     return dist.mean()
 

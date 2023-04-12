@@ -44,20 +44,20 @@ def evaluate_matching_score(eval_wrapper, motion_loaders, file):
                     motions=motions,
                     m_lens=m_lens
                 )
-                if idx == 4:
-                    print('reaches 4 idx')
+                # if idx == 4:
+                #     print('reaches 4 idx')
 
                 dist_mat = euclidean_distance_matrix(text_embeddings.cpu().numpy(),
                                                      motion_embeddings.cpu().numpy())
                 matching_score_sum += dist_mat.trace()
-                print(f'id: {idx}  matching_score_sum:{matching_score_sum}')
+                # print(f'id: {idx}  matching_score_sum:{matching_score_sum}')
 
                 argsmax = np.argsort(dist_mat, axis=1)
                 top_k_mat = calculate_top_k(argsmax, top_k=3)
                 top_k_count += top_k_mat.sum(axis=0)
 
                 all_size += text_embeddings.shape[0]
-                print(f'id: {idx}  all_size:{all_size}')
+                # print(f'id: {idx}  all_size:{all_size}')
 
                 all_motion_embeddings.append(motion_embeddings.cpu().numpy())
 
