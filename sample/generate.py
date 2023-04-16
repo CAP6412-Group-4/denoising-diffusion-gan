@@ -380,7 +380,7 @@ def construct_template_variables(unconstrained):
 def load_dataset(args, max_frames, n_frames):
     data, _ , dataset = get_dataset_loader(name=args.dataset,
                               batch_size=args.batch_size,
-                              num_frames=max_frames,
+                              num_frames=n_frames,
                               rank = args.node_rank,
                               world_size = args.num_process_per_node,
                               split='test',

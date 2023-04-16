@@ -106,15 +106,15 @@ class TrainingHelper:
     def __init__(
         self,
         loss_type,
-        lambda_rcxyz=0.,
+        lambda_rcxyz=1.,
         lambda_vel=0.,
         lambda_pose=1.,
         lambda_orient=1.,
         lambda_loc=1.,
         data_rep='rot6d',
-        lambda_root_vel=0.,
-        lambda_vel_rcxyz=0.,
-        lambda_fc=0.
+        lambda_root_vel=1.,
+        lambda_vel_rcxyz=1.,
+        lambda_fc=1.
         
     ):
         

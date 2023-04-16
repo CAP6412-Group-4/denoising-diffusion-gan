@@ -105,6 +105,7 @@ class NCSNpp(nn.Module):
     )
 
     self.seqTransEncoder = nn.TransformerEncoder(encoder_layer=seqTransEncoderLayer, num_layers=8)
+    
 
     # modules: list[nn.Module] = []
     # # timestep/noise_level embedding; only for continuous training
@@ -307,7 +308,8 @@ class NCSNpp(nn.Module):
     mapping_layers = [
       nn.Linear(128, 400),
       self.act,
-      nn.Linear(400, 512), 
+      nn.Linear(400, 512),
+      self.act, 
     ]
     # for _ in range(config.n_mlp):
     #     mapping_layers.append(dense(self.z_emb_dim, self.z_emb_dim))
@@ -380,6 +382,7 @@ class NCSNpp(nn.Module):
       # print(toAdd.size(), encoded_text.size(), len(y['text']), y.get('uncond', False))
 
       zemb += toAdd
+
 
       # action embeddings
       # action_embedding = self.embed_action(action_cond)
