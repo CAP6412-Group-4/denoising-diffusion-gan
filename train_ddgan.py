@@ -8,10 +8,8 @@
 
 import argparse
 import builtins
-from typing import Literal, TypedDict
 import torch
 import numpy as np
-from tap import Tap
 import os
 
 import torch.nn as nn
@@ -31,110 +29,6 @@ import torch.distributed as dist
 import shutil
 from score_sde.models.mdm import MDM
 import train_utils.train_helper as th
-
-class Args(Tap):
-    seed: int
-    """seed used for initialization"""
-    resume: bool
-    image_size: int
-    """size of image"""
-    num_channels: int
-    """channel of image"""
-    centered: bool
-    """-1,1 scale"""
-    use_geometric: bool
-    beta_min: float
-    """beta_min for diffusion"""
-    beta_max: float
-    """beta_max for diffusion"""
-    num_channels_dae: int
-    """number of initial channels in denoising model"""
-    n_mlp: int
-    """number of nlp layers for z"""
-    ch_mult: list[int]
-    """channel multiplier"""
-    num_res_blocks: int
-    """number of resnet blocks blocks per scale"""
-    attn_resolutions: tuple[int, int]
-    """resolution of applying attention"""
-    dropout: float
-    """dropout rate"""
-    resamp_with_conv: bool
-    """always up/down sampling with conv"""
-    conditional: bool
-    """noise conditional"""
-    fir: bool
-    """FIR"""
-    fir_kernel: list[int]
-    """FIR kernel"""
-    skip_rescale: bool
-    """skip rescale"""
-    resblock_type: str
-    """type of resnet block, 'biggan' or 'ddpm'"""
-    progressive: Literal['none', 'output_skip', 'residual']
-    """progressive type of output"""
-    progressive_input: Literal['none', 'output_skip', 'residual']
-    """progressive type of input"""
-    progressive_combine: Literal['sum', 'cat']
-    """progressive combine type for input"""
-    embedding_type: Literal["positional", "fourier"]
-    """type of time embedding"""
-    fourier_scale: float
-    """scale of fourier transform"""
-    not_use_tanh: bool
-    exp: str
-    """experiment name"""
-    dataset: str
-    """dataset name"""
-    nz: int
-    num_timesteps: int
-    z_emb_dim: int
-    t_emb_dim: int
-    batch_size: int
-    """input batch size"""
-    num_epoch: int
-    ngf: int
-    lr_g: float
-    """generator learning rate"""
-    lr_d: float
-    """discriminator learning rate"""
-    beta1: float
-    """beta1 for adam"""
-    beta2: float
-    """beta2 for adam"""
-    no_lr_decay: bool
-    use_ema: bool
-    """use exponential moving average"""
-    ema_decay: bool
-    """decay rate for exponential moving average"""
-    r1_gamma: float
-    """coefficient for r1 regularization"""
-    lazy_reg: int
-    """lazy regularization"""
-    save_content: bool
-    save_content_every: int
-    """save content every n epochs"""
-    save_ckpt_every: int
-    """save checkpoint every n epochs"""
-    num_proc_node: int
-    """number of processes per node for multi-node training"""
-    num_process_per_node: int
-    """number of gpus"""
-    node_rank: int
-    """index of node"""
-    local_rank: int
-    """rank of process in node"""
-    master_address: str
-    """address of master node"""
-    num_frames: int
-    """number of frames to generate the motion"""
-    use_small_d: bool
-    """use small discriminator"""
-    world_size: int
-    """total number of processes"""
-    global_rank: int
-    """global rank of process"""
-
 
 # from .fp16_util import MixedPrecisionTrainer
 
@@ -162,7 +56,7 @@ def extract(input, t, shape):
 
     return out
 
-def get_time_schedule(args: Args, device):
+def get_time_schedule(args, device):
     n_timestep = args.num_timesteps
     eps_small = 1e-3
     t = np.arange(0, n_timestep + 1, dtype=np.float64)
@@ -170,7 +64,7 @@ def get_time_schedule(args: Args, device):
     t = torch.from_numpy(t) * (1. - eps_small)  + eps_small
     return t.to(device)
 
-def get_sigma_schedule(args: Args, device):
+def get_sigma_schedule(args, device):
     n_timestep = args.num_timesteps
     beta_min = args.beta_min
     beta_max = args.beta_max
@@ -197,7 +91,7 @@ def get_sigma_schedule(args: Args, device):
 
 
 class Diffusion_Coefficients():
-    def __init__(self, args: Args, device):
+    def __init__(self, args, device):
                 
         self.sigmas, self.a_s, _ = get_sigma_schedule(args, device=device)
         self.a_s_cum = np.cumprod(self.a_s.cpu())
@@ -236,7 +130,7 @@ def q_sample_pairs(coeff, x_start, t):
     return x_t, x_t_plus_one
 #%% posterior sampling
 class Posterior_Coefficients():
-    def __init__(self, args: Args, device):
+    def __init__(self, args, device):
         
         _, _, self.betas = get_sigma_schedule(args, device=device)
         
@@ -300,7 +194,7 @@ def sample_from_model(coefficients, generator, n_time, x_init, T, opt):
     return x
 
 #%%
-def train(rank: int, gpu: int, args: Args):
+def train(rank: int, gpu: int, args):
     from score_sde.models.discriminator import Discriminator_small, Discriminator_large
     from score_sde.models.ncsnpp_generator_adagn import NCSNpp
     from score_sde.models.mdm import MDM
@@ -591,10 +485,15 @@ def train(rank: int, gpu: int, args: Args):
             
 
 
-def init_processes(rank, size, fn, args: Args):
+def init_processes(rank, size, fn, args):
     """ Initialize the distributed environment. """
-    # os.environ['MASTER_ADDR'] = args.master_address
-    # os.environ['MASTER_PORT'] = '6020'
+
+    if 'MASTER_ADDR' not in os.environ:
+        os.environ['MASTER_ADDR'] = args.master_address
+
+    if 'MASTER_PORT' not in os.environ:
+        os.environ['MASTER_PORT'] = '6020'
+    
     torch.cuda.set_device(args.node_rank % torch.cuda.device_count())
     gpu = args.node_rank % torch.cuda.device_count()
     dist.init_process_group(backend='nccl', init_method='env://', rank=rank, world_size=size)
@@ -716,7 +615,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--use_pretrained', action='store_true', default=False)
    
-    args: Args = parser.parse_args()
+    args = parser.parse_args()
     args.world_size = args.num_proc_node * args.num_process_per_node
     
     if 'SLURM_PROCID' in os.environ: # for slurm scheduler

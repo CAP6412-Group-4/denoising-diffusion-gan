@@ -31,7 +31,6 @@
 ''' Codes adapted from https://github.com/yang-song/score_sde_pytorch/blob/main/models/ncsnpp.py
 '''
 
-from train_ddgan import Args
 from . import utils, layers, layerspp, dense_layer
 import torch.nn as nn
 # import functools
@@ -61,7 +60,7 @@ class PixelNorm(nn.Module):
 class NCSNpp(nn.Module):
   """NCSN++ model"""
 
-  def __init__(self, config: Args):
+  def __init__(self, config):
     super().__init__()
     self.config = config
     # self.not_use_tanh = config.not_use_tanh
