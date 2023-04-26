@@ -41,7 +41,7 @@ python -m eval.eval_humanml --dataset humanml --model_path saved_info/dd-gan/hum
 ## Acknowledgements ##
 
 We want to thank ["Human Motion Diffusion Model"](https://arxiv.org/pdf/2209.14916.pdf) and 
-[TACKLING THE GENERATIVE LEARNING TRILEMMA WITH DENOISING DIFFUSION GANS](https://arxiv.org/pdf/2112.07804.pdf) for their contributions. Their ideas,
+["TACKLING THE GENERATIVE LEARNING TRILEMMA WITH DENOISING DIFFUSION GANS"](https://arxiv.org/pdf/2112.07804.pdf) for their contributions. Their ideas,
 valuable insights, and codebase allowed us to implement our work.
 
 ## License ##
