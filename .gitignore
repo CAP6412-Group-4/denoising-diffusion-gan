@@ -48,6 +48,9 @@ Thumbs.db
 dataset/
 utils/HumanML3D/
 saved_info/
+frame_save/
+kit/
+t2m/
 
 # Virtual environment
 venv
