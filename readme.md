@@ -10,7 +10,7 @@ cp -r ../HumanML3D/HumanML3D ./dataset/HumanML3D
 ```
 
 ## Pretrained Weights ##
-Download and save [humanml-encoder-512](https://drive.google.com/file/d/1PE0PK8e5a5j-7-Xhs5YET5U5pGh0c821/view?usp=sharing) 
+Download and save [humanml-encoder-512](https://drive.google.com/file/d/1PE0PK8e5a5j-7-Xhs5YET5U5pGh0c821/view?usp=sharing) to
 ```save``` folder.
 
 ## Training ##
