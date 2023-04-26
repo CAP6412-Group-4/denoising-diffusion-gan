@@ -1,4 +1,4 @@
-# MDM-2-DiffGAN implementation. Our [***paper***](https://github.com/CAP6412-Group-4/mdm-2-ddgan-report) #
+# MDM-2-DiffGAN implementation. Our [paper](https://github.com/CAP6412-Group-4/mdm-2-ddgan-report) #
 
 
 ## Set up dataset ##
@@ -20,7 +20,7 @@ To train our model, use the following script.
 python -m train_ddgan --dataset humanml --num_channels 263 --batch_size 32
 ```
 
-### Generation ##
+## Generation ##
 
 ### To generate a single prompt:
 ```shell
@@ -38,6 +38,12 @@ python -m sample.generate --model_path ./save/humanml_trans_enc_512/model0002000
 python -m eval.eval_humanml --dataset humanml --model_path saved_info/dd-gan/humanml/experiment/netG_325 --eval_mode mm_short --output_dir ./save --exp experiment --epoch_id 325 --node_rank 0 --text_prompt "A person jumping"
 ```
 
+## Acknowledgements ##
+
+We want to thank ["Human Motion Diffusion Model"](https://arxiv.org/pdf/2209.14916.pdf) and 
+[TACKLING THE GENERATIVE LEARNING TRILEMMA WITH DENOISING DIFFUSION GANS](https://arxiv.org/pdf/2112.07804.pdf) for their contributions. Their ideas,
+valuable insights, and codebase allowed us to implement our work.
+
 ## License ##
 
-Our code is distributed under both an [***MIT***](https://github.com/CAP6412-Group-4/denoising-diffusion-gan/blob/main/LICENSE) and [***NVIDIA***](https://github.com/CAP6412-Group-4/denoising-diffusion-gan/blob/main/LICENSE) License.
+Our code is distributed under both an [MIT](https://github.com/CAP6412-Group-4/denoising-diffusion-gan/blob/main/LICENSE) and [NVIDIA](https://github.com/CAP6412-Group-4/denoising-diffusion-gan/blob/main/LICENSE) License.
