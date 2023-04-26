@@ -123,7 +123,7 @@ def generate_sample(args, netG, device, data_rep, dataset, model_kwargs, all_mot
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
-        x_t_1 = torch.randn(args.batch_size, args.num_channels,1, args.image_size).to(device)
+        x_t_1 = torch.randn(args.batch_size, args.num_channels,1, n_frames).to(device)
         sample = dg.sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1, T,  args)
 
 
@@ -251,7 +251,7 @@ def main():
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
-        x_t_1 = torch.randn(args.batch_size, args.num_channels,1, args.image_size).to(device)
+        x_t_1 = torch.randn(args.batch_size, args.num_channels,1, n_frames).to(device)
         sample = dg.sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1, T,  args)
 
         # sample = torch.load('./saved_tensor/sample.pt')
@@ -385,7 +385,7 @@ def load_dataset(args, max_frames, n_frames):
                               world_size = args.num_process_per_node,
                               split='test',
                               hml_mode='text_only')
-    # data.fixed_length = n_frames
+    data.fixed_length = n_frames
     return data, dataset
 
 

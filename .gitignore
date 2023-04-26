@@ -51,6 +51,7 @@ saved_info/
 t2m/
 save/
 kit/
+frame_save/
 
 # Virtual environment
 venv
