@@ -58,7 +58,6 @@ venv
 cifar-10-python.tar.gz
 venv/
 
-.vscode/launch.json
 save/
 
-.vscode/
+data/

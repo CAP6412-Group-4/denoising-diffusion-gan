@@ -7,9 +7,9 @@
 
 
 import argparse
+import builtins
 import torch
 import numpy as np
-
 import os
 
 import torch.nn as nn
@@ -29,7 +29,6 @@ import torch.distributed as dist
 import shutil
 from score_sde.models.mdm import MDM
 import train_utils.train_helper as th
-
 
 # from .fp16_util import MixedPrecisionTrainer
 
@@ -195,7 +194,7 @@ def sample_from_model(coefficients, generator, n_time, x_init, T, opt):
     return x
 
 #%%
-def train(rank, gpu, args):
+def train(rank: int, gpu: int, args):
     from score_sde.models.discriminator import Discriminator_small, Discriminator_large
     from score_sde.models.ncsnpp_generator_adagn import NCSNpp
     from score_sde.models.mdm import MDM
@@ -207,6 +206,8 @@ def train(rank, gpu, args):
     device = torch.device('cuda:{}'.format(gpu))
     
     batch_size = args.batch_size
+
+    print(f'Hello from the child process using gpu {gpu}, rank {rank}', flush=True)
     
     nz = args.nz #latent dimension
     
@@ -289,10 +290,9 @@ def train(rank, gpu, args):
     
     optimizerG = optim.Adam(netG.parameters(), lr=args.lr_g, betas = (args.beta1, args.beta2))
 
-    print(optimizerG)
     
-    # if args.use_ema:
-        # optimizerG = EMA(optimizerG, ema_decay=args.ema_decay)
+    if args.use_ema:
+        optimizerG = EMA(optimizerG, ema_decay=args.ema_decay)
     
     schedulerG = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerG, args.num_epoch, eta_min=1e-5)
     schedulerD = torch.optim.lr_scheduler.CosineAnnealingLR(optimizerD, args.num_epoch, eta_min=1e-5)
@@ -487,10 +487,15 @@ def train(rank, gpu, args):
 
 def init_processes(rank, size, fn, args):
     """ Initialize the distributed environment. """
-    os.environ['MASTER_ADDR'] = args.master_address
-    os.environ['MASTER_PORT'] = '6020'
-    torch.cuda.set_device(args.local_rank)
-    gpu = args.local_rank
+
+    if 'MASTER_ADDR' not in os.environ:
+        os.environ['MASTER_ADDR'] = args.master_address
+
+    if 'MASTER_PORT' not in os.environ:
+        os.environ['MASTER_PORT'] = '6020'
+    
+    torch.cuda.set_device(args.node_rank % torch.cuda.device_count())
+    gpu = args.node_rank % torch.cuda.device_count()
     dist.init_process_group(backend='nccl', init_method='env://', rank=rank, world_size=size)
     fn(rank, gpu, args)
     dist.barrier()
@@ -499,6 +504,7 @@ def init_processes(rank, size, fn, args):
 def cleanup():
     dist.destroy_process_group()    
 #%%
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('ddgan parameters')
     parser.add_argument('--seed', type=int, default=1024,
@@ -611,22 +617,30 @@ if __name__ == '__main__':
    
     args = parser.parse_args()
     args.world_size = args.num_proc_node * args.num_process_per_node
+    
+    if 'SLURM_PROCID' in os.environ: # for slurm scheduler
+        args.node_rank = int(os.environ['SLURM_PROCID'])
+
     size = args.num_process_per_node
 
+    print(f"world size = {args.world_size}")
+
     if size > 1:
-        processes = []
-        for rank in range(size):
-            args.local_rank = rank
-            global_rank = rank + args.node_rank * args.num_process_per_node
-            global_size = args.num_proc_node * args.num_process_per_node
-            args.global_rank = global_rank
-            print('Node rank %d, local proc %d, global proc %d' % (args.node_rank, rank, global_rank))
-            p = Process(target=init_processes, args=(global_rank, global_size, train, args))
-            p.start()
-            processes.append(p)
-            
-        for p in processes:
-            p.join()
+        # processes = []
+        # for rank in range(size):
+        # args.local_rank = rank
+        global_rank = args.local_rank + args.node_rank * args.num_process_per_node
+        global_size = args.num_proc_node * args.num_process_per_node
+        args.global_rank = global_rank
+        print('Node rank %d, local proc %d, global proc %d' % (args.node_rank, args.local_rank, global_rank))
+
+        init_processes(rank=args.node_rank, size=global_size, fn=train, args=args)
+            # p = Process(target=init_processes, args=(rank, global_size, train, args))
+            # p.start()
+            # processes.append(p)
+                    
+        # for p in processes:
+        #     p.join()
     else:
         print('starting in debug mode')
         

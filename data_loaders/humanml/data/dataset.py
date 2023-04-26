@@ -126,7 +126,6 @@ class Text2MotionDataset(data.Dataset):
     def reset_max_len(self, length):
         assert length <= self.opt.max_motion_length
         self.pointer = np.searchsorted(self.length_arr, length)
-        print("Pointer Pointing at %d"%self.pointer)
         self.max_length = length
 
     def inv_transform(self, data):
@@ -284,7 +283,6 @@ class Text2MotionDatasetV2(data.Dataset):
     def reset_max_len(self, length):
         assert length <= self.max_motion_length
         self.pointer = np.searchsorted(self.length_arr, length)
-        print("Pointer Pointing at %d"%self.pointer)
         self.max_length = length
 
     def inv_transform(self, data):
@@ -426,7 +424,6 @@ class Text2MotionDatasetBaseline(data.Dataset):
     def reset_max_len(self, length):
         assert length <= self.max_motion_length
         self.pointer = np.searchsorted(self.length_arr, length)
-        print("Pointer Pointing at %d"%self.pointer)
         self.max_length = length
 
     def inv_transform(self, data):
