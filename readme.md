@@ -1,4 +1,4 @@
-# MDM-2-DiffGAN implementation. Our [paper](https://github.com/CAP6412-Group-4/mdm-2-ddgan-report) #
+# MDM-2-DiffGAN implementation. Our [paper](https://github.com/CAP6412-Group-4/denoising-diffusion-gan/blob/main/report/MDM_DDGAN.pdf) #
 
 
 ## Set up dataset ##
