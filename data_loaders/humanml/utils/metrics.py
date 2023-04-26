@@ -14,8 +14,11 @@ def euclidean_distance_matrix(matrix1, matrix2):
     """
     assert matrix1.shape[1] == matrix2.shape[1]
     d1 = -2 * np.dot(matrix1, matrix2.T)    # shape (num_test, num_train)
+    d1[np.isnan(d1)] = 0
     d2 = np.sum(np.square(matrix1), axis=1, keepdims=True)    # shape (num_test, 1)
     d3 = np.sum(np.square(matrix2), axis=1)     # shape (num_train, )
+    # replace all the nans in d3 with 0s
+    d3[np.isnan(d3)] = 0
     dists = np.sqrt(d1 + d2 + d3)  # broadcasting
     return dists
 
@@ -65,8 +68,9 @@ def calculate_activation_statistics(activations):
     -- mu: dim_feat
     -- sigma: dim_feat x dim_feat
     """
-    mu = np.mean(activations, axis=0)
-    cov = np.cov(activations, rowvar=False)
+    activations = np.nan_to_num(activations)
+    mu = np.mean(activations, axis=0) #if not np.isnan(np.mean(activations, axis=0)).any() else np.zeros(activations.shape[1])
+    cov = np.cov(activations, rowvar=False) #if not np.isnan(np.cov(activations, rowvar=False)).any() else np.zeros((activations.shape[1],activations.shape[1]))
     return mu, cov
 
 
@@ -75,9 +79,14 @@ def calculate_diversity(activation, diversity_times):
     assert activation.shape[0] > diversity_times
     num_samples = activation.shape[0]
 
+
     first_indices = np.random.choice(num_samples, diversity_times, replace=False)
     second_indices = np.random.choice(num_samples, diversity_times, replace=False)
-    dist = linalg.norm(activation[first_indices] - activation[second_indices], axis=1)
+    act_1idx = activation[first_indices].astype(np.float64)
+    act_1idx[np.isnan(act_1idx)] = 0
+    act_2idx = activation[second_indices].astype(np.float64)
+    act_2idx[np.isnan(act_2idx)] = 0
+    dist = linalg.norm(act_1idx - act_2idx, axis=1)
     return dist.mean()
 
 
@@ -88,6 +97,13 @@ def calculate_multimodality(activation, multimodality_times):
 
     first_dices = np.random.choice(num_per_sent, multimodality_times, replace=False)
     second_dices = np.random.choice(num_per_sent, multimodality_times, replace=False)
+
+    # act_1idx = activation[:, first_dices]
+    # act_1idx[np.isnan(act_1idx)] = 0
+    # act_2idx = activation[:, second_dices]
+    # act_2idx[np.isnan(act_2idx)] = 0
+
+
     dist = linalg.norm(activation[:, first_dices] - activation[:, second_dices], axis=2)
     return dist.mean()
 

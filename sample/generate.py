@@ -23,6 +23,139 @@ import test_ddgan as dg
 from score_sde.models.ncsnpp_generator_adagn import NCSNpp
 from model.rotation2xyz import Rotation2xyz
 
+def setup_params():
+    device = 'cuda:0'
+    args = generate_args()
+    fixseed(args.seed)
+    out_path = args.output_dir
+    
+    max_frames = 196 if args.dataset in ['kit', 'humanml'] else 60
+    fps = 12.5 if args.dataset == 'kit' else 20
+    n_frames = min(max_frames, int(args.motion_length*fps))
+    is_using_data = not any([args.input_text, args.text_prompt, args.action_file, args.action_name])
+
+
+
+    dist_util.setup_dist(device)
+    if out_path == '':
+        out_path = os.path.join(os.path.dirname(args.model_path), 'samples')
+
+    # this block must be called BEFORE the dataset is loaded
+    if args.text_prompt != '':
+        texts = [args.text_prompt]
+        args.num_samples = 1
+    elif args.input_text != '':
+        assert os.path.exists(args.input_text)
+        with open(args.input_text, 'r') as fr:
+            texts = fr.readlines()
+        texts = [s.replace('\n', '') for s in texts]
+        args.num_samples = len(texts)
+    elif args.action_name:
+        action_text = [args.action_name]
+        args.num_samples = 1
+    elif args.action_file != '':
+        assert os.path.exists(args.action_file)
+        with open(args.action_file, 'r') as fr:
+            action_text = fr.readlines()
+        action_text = [s.replace('\n', '') for s in action_text]
+        args.num_samples = len(action_text)    
+
+    assert args.num_samples <= args.batch_size, \
+        f'Please either increase batch_size({args.batch_size}) or reduce num_samples({args.num_samples})'
+    # So why do we need this check? In order to protect GPU from a memory overload in the following line.
+    # If your GPU can handle batch size larger then default, you can specify it through --batch_size flag.
+    # If it doesn't, and you still want to sample more prompts, run this script with different seeds
+    # (specify through the --seed flag)
+    args.batch_size = args.num_samples  # Sampling a single batch from the testset, with exactly args.num_samples
+
+    all_motions = []
+    all_lengths = []
+    all_text = []
+    total_num_samples = args.num_samples * args.num_repetitions
+    data_rep = 'hml_vec'
+    njoints = 263
+    nfeats = 1
+
+    data, dataset = load_dataset(args, max_frames, n_frames)
+
+    netG = NCSNpp(args).to(device)
+    ckpt = torch.load('./saved_info/dd_gan/{}/{}/netG_{}.pth'.format(args.dataset, args.exp, args.epoch_id), map_location=device)
+    
+    #loading weights from ddp in single gpu
+    for key in list(ckpt.keys()):
+        ckpt[key[7:]] = ckpt.pop(key)
+    netG.load_state_dict(ckpt)
+    netG.eval()
+
+    if is_using_data:
+        iterator = iter(data)
+        _, model_kwargs = next(iterator)
+    else:
+        collate_args = [{'inp': torch.zeros(n_frames), 'tokens': None, 'lengths': n_frames}] * args.num_samples
+        is_t2m = any([args.input_text, args.text_prompt])
+        if is_t2m:
+            # t2m
+            collate_args = [dict(arg, text=txt) for arg, txt in zip(collate_args, texts)]
+        else:
+            # a2m
+            action = data.dataset.action_name_to_action(action_text)
+            collate_args = [dict(arg, action=one_action, action_text=one_action_text) for
+                            arg, one_action, one_action_text in zip(collate_args, action, action_text)]
+        _, model_kwargs = collate(collate_args)
+
+    return args, netG, device, data_rep, dataset, model_kwargs, all_motions, all_lengths, all_text, n_frames
+
+
+
+
+def generate_sample(args, netG, device, data_rep, dataset, model_kwargs, all_motions, all_lengths, all_text, n_frames):
+    for rep_i in range(args.num_repetitions):
+        print(f'### Sampling [repetitions #{rep_i}]')
+        
+        T = dg.get_time_schedule(args, device)
+        
+        pos_coeff = dg.Posterior_Coefficients(args, device)
+            
+        iters_needed = 50000 // args.batch_size
+        
+        save_dir = "./generated_samples/{}".format(args.dataset)
+        
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
+        x_t_1 = torch.randn(args.batch_size, args.num_channels,1, n_frames).to(device)
+        sample = dg.sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1, T,  args)
+
+
+        # sample = torch.load('./saved_tensor/sample.pt')
+
+        # Recover XYZ *positions* from HumanML3D vector representation
+        if data_rep == 'hml_vec':
+            n_joints = 22 if sample.shape[1] == 263 else 21
+            sample = dataset.t2m_dataset.inv_transform(sample.cpu().permute(0, 2, 3, 1)).float()
+            sample = recover_from_ric(sample, n_joints)
+            sample = sample.view(-1, *sample.shape[2:]).permute(0, 2, 3, 1)
+
+
+        rot2xyz_pose_rep = 'xyz' if data_rep in ['xyz', 'hml_vec'] else data_rep
+        rot2xyz_mask = None if rot2xyz_pose_rep == 'xyz' else model_kwargs['y']['mask'].reshape(args.batch_size, n_frames).bool()
+        rot2xyz = Rotation2xyz(device='cpu', dataset=args.dataset)
+        sample = rot2xyz(x=sample, mask=rot2xyz_mask, pose_rep=rot2xyz_pose_rep, glob=True, translation=True,
+                                jointstype='smpl', vertstrans=True, betas=None, beta=0, glob_rot=None,
+                                get_rotations_back=False)
+
+
+        if args.unconstrained:
+            all_text += ['unconstrained'] * args.num_samples
+        else:
+            text_key = 'text' if 'text' in model_kwargs['y'] else 'action_text'
+            all_text += model_kwargs['y'][text_key]
+
+        all_motions.append(sample.cpu().numpy())
+        all_lengths.append(model_kwargs['y']['lengths'].cpu().numpy())
+
+        print(f"created {len(all_motions) * args.batch_size} samples")
+
 # args: dataset, batch_size, num_samples, output_dir, model_path
 def main():
     device = 'cuda:0'
@@ -104,48 +237,51 @@ def main():
                             arg, one_action, one_action_text in zip(collate_args, action, action_text)]
         _, model_kwargs = collate(collate_args)
 
-    T = dg.get_time_schedule(args, device)
-    
-    pos_coeff = dg.Posterior_Coefficients(args, device)
+    for rep_i in range(args.num_repetitions):
+        print(f'### Sampling [repetitions #{rep_i}]')
+
+        T = dg.get_time_schedule(args, device)
         
-    iters_needed = 50000 // args.batch_size
-    
-    save_dir = "./generated_samples/{}".format(args.dataset)
-    
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+        pos_coeff = dg.Posterior_Coefficients(args, device)
+            
+        iters_needed = 50000 // args.batch_size
+        
+        save_dir = "./generated_samples/{}".format(args.dataset)
+        
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
 
-    x_t_1 = torch.randn(args.batch_size, args.num_channels,1, args.image_size).to(device)
-    sample = dg.sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1, T,  args)
+        x_t_1 = torch.randn(args.batch_size, args.num_channels,1, n_frames).to(device)
+        sample = dg.sample_from_model(pos_coeff, netG, args.num_timesteps, x_t_1, T,  args)
 
-    # sample = torch.load('./saved_tensor/sample.pt')
+        # sample = torch.load('./saved_tensor/sample.pt')
 
-    # Recover XYZ *positions* from HumanML3D vector representation
-    if data_rep == 'hml_vec':
-        n_joints = 22 if sample.shape[1] == 263 else 21
-        sample = dataset.t2m_dataset.inv_transform(sample.cpu().permute(0, 2, 3, 1)).float()
-        sample = recover_from_ric(sample, n_joints)
-        sample = sample.view(-1, *sample.shape[2:]).permute(0, 2, 3, 1)
-
-
-    rot2xyz_pose_rep = 'xyz' if data_rep in ['xyz', 'hml_vec'] else data_rep
-    rot2xyz_mask = None if rot2xyz_pose_rep == 'xyz' else model_kwargs['y']['mask'].reshape(args.batch_size, n_frames).bool()
-    rot2xyz = Rotation2xyz(device='cpu', dataset=args.dataset)
-    sample = rot2xyz(x=sample, mask=rot2xyz_mask, pose_rep=rot2xyz_pose_rep, glob=True, translation=True,
-                            jointstype='smpl', vertstrans=True, betas=None, beta=0, glob_rot=None,
-                            get_rotations_back=False)
+        # Recover XYZ *positions* from HumanML3D vector representation
+        if data_rep == 'hml_vec':
+            n_joints = 22 if sample.shape[1] == 263 else 21
+            sample = dataset.t2m_dataset.inv_transform(sample.cpu().permute(0, 2, 3, 1)).float()
+            sample = recover_from_ric(sample, n_joints)
+            sample = sample.view(-1, *sample.shape[2:]).permute(0, 2, 3, 1)
 
 
-    if args.unconstrained:
-        all_text += ['unconstrained'] * args.num_samples
-    else:
-        text_key = 'text' if 'text' in model_kwargs['y'] else 'action_text'
-        all_text += model_kwargs['y'][text_key]
+        rot2xyz_pose_rep = 'xyz' if data_rep in ['xyz', 'hml_vec'] else data_rep
+        rot2xyz_mask = None if rot2xyz_pose_rep == 'xyz' else model_kwargs['y']['mask'].reshape(args.batch_size, n_frames).bool()
+        rot2xyz = Rotation2xyz(device='cpu', dataset=args.dataset)
+        sample = rot2xyz(x=sample, mask=rot2xyz_mask, pose_rep=rot2xyz_pose_rep, glob=True, translation=True,
+                                jointstype='smpl', vertstrans=True, betas=None, beta=0, glob_rot=None,
+                                get_rotations_back=False)
 
-    all_motions.append(sample.cpu().numpy())
-    all_lengths.append(model_kwargs['y']['lengths'].cpu().numpy())
 
-    print(f"created {len(all_motions) * args.batch_size} samples")
+        if args.unconstrained:
+            all_text += ['unconstrained'] * args.num_samples
+        else:
+            text_key = 'text' if 'text' in model_kwargs['y'] else 'action_text'
+            all_text += model_kwargs['y'][text_key]
+
+        all_motions.append(sample.cpu().numpy())
+        all_lengths.append(model_kwargs['y']['lengths'].cpu().numpy())
+
+        print(f"created {len(all_motions) * args.batch_size} samples")
 
 
     all_motions = np.concatenate(all_motions, axis=0)
@@ -244,12 +380,12 @@ def construct_template_variables(unconstrained):
 def load_dataset(args, max_frames, n_frames):
     data, _ , dataset = get_dataset_loader(name=args.dataset,
                               batch_size=args.batch_size,
-                              num_frames=max_frames,
+                              num_frames=n_frames,
                               rank = args.node_rank,
                               world_size = args.num_process_per_node,
                               split='test',
                               hml_mode='text_only')
-    # data.fixed_length = n_frames
+    data.fixed_length = n_frames
     return data, dataset
 
 
